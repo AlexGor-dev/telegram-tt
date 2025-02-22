@@ -10,7 +10,6 @@ export default function useMouseInside(
   isOpen: boolean, onClose: NoneToVoidFunction, menuCloseTimeout = MENU_CLOSE_TIMEOUT, isDisabled = false,
 ) {
   const isMouseInside = useRef(false);
-
   const markMouseInside = useLastCallback(() => {
     isMouseInside.current = true;
   });

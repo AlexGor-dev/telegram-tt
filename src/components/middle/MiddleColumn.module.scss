@@ -20,9 +20,9 @@
     background-size: cover;
   }
 
-  :global(html.theme-light) &:not(.customBgImage)::before {
-    background-image: url('../../assets/chat-bg-br.png');
-  }
+  //:global(html.theme-light) &:not(.customBgImage)::before {
+  //  background-image: url('../../assets/chat-bg-br.png');
+  //}
 
   &:not(.customBgImage).customBgColor::before {
     display: none;
@@ -94,4 +94,12 @@
       mix-blend-mode: unset;
     }
   }
+}
+
+.canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
 }

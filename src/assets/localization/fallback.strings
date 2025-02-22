@@ -433,7 +433,7 @@
 "SettingsTray" = "Show Icon in Menu Bar";
 "SettingsOfflineNotificationUnsupported" = "Not supported";
 "TextSize" = "Message Font Size";
-"ChatBackground" = "Chat Wallpaper";
+"BackgroundAnimated" = "Chat Wallpaper";
 "Theme" = "Theme";
 "AccDescrStickers" = "Stickers";
 "DoubleTapSetting" = "Quick Reaction";

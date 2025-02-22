@@ -534,6 +534,8 @@ const MessageList: FC<OwnProps & StateProps> = ({
           removeExtraClass(container.parentElement!, 'force-messages-scroll');
         }
       }, MESSAGE_ANIMATION_DURATION);
+      // // mycode
+      // document.dispatchEvent(new Event('messageAdded'));
     }
 
     requestForcedReflow(() => {
@@ -547,6 +549,8 @@ const MessageList: FC<OwnProps & StateProps> = ({
         // we calculate `isAtBottom` with a "buffer" of the latest message height (this is approximate).
         const lastItemHeight = lastItemElement ? lastItemElement.offsetHeight : 0;
         bottomOffset -= lastItemHeight;
+        // mycode
+        document.dispatchEvent(new Event('messageAdded'));
       }
       const isAtBottom = isViewportNewest && prevIsViewportNewest && bottomOffset <= BOTTOM_THRESHOLD;
       const isAlreadyFocusing = messageIds && memoFocusingIdRef.current === messageIds[messageIds.length - 1];

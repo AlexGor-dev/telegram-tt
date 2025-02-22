@@ -108,7 +108,7 @@ export type TabState = {
     offset?: string;
     results?: ApiVideo[];
   };
-
+  emojiSearchQuery: string;
   stickerSearch: {
     query?: string;
     hash?: string;

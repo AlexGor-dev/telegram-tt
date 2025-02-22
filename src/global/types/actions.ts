@@ -129,6 +129,7 @@ export interface ActionPayloads {
   };
   goToAuthQrCode: undefined;
 
+  setEmojiSearchQuery: { query?: string } & WithTabId;
   // stickers & GIFs
   setStickerSearchQuery: { query?: string } & WithTabId;
   saveGif: {

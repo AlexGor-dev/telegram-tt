@@ -7,7 +7,7 @@ import { requestForcedReflow, requestMutation } from '../../lib/fasterdom/faster
 import buildClassName from '../../util/buildClassName';
 import forceReflow from '../../util/forceReflow';
 import { MouseButton } from '../../util/windowEnvironment';
-import renderText from '../common/helpers/renderText';
+import renderText, {renderEmoji} from '../common/helpers/renderText';
 
 import useContextMenuHandlers from '../../hooks/useContextMenuHandlers';
 import { useFastClick } from '../../hooks/useFastClick';
@@ -23,6 +23,7 @@ import './Tab.scss';
 type OwnProps = {
   className?: string;
   title: TeactNode;
+  icon?: string;
   isActive?: boolean;
   isBlocked?: boolean;
   badgeCount?: number;
@@ -42,6 +43,7 @@ const classNames = {
 const Tab: FC<OwnProps> = ({
   className,
   title,
+  icon,
   isActive,
   isBlocked,
   badgeCount,
@@ -140,6 +142,8 @@ const Tab: FC<OwnProps> = ({
       ref={tabRef}
     >
       <span className="Tab_inner">
+        {icon && renderEmoji(icon)}
+        {/*<Icon name="bots" />*/}
         {typeof title === 'string' ? renderText(title) : title}
         {Boolean(badgeCount) && (
           <span className={buildClassName('badge', isBadgeActive && classNames.badgeActive)}>{badgeCount}</span>

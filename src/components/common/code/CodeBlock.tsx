@@ -1,5 +1,6 @@
 import type { FC } from '../../../lib/teact/teact';
 import React, { memo, useCallback, useState } from '../../../lib/teact/teact';
+import TeactDOM from '../../../lib/teact/teact-dom';
 
 import { ApiMessageEntityTypes } from '../../../api/types';
 
@@ -53,3 +54,11 @@ const CodeBlock: FC<OwnProps> = ({ text, language, noCopy }) => {
 };
 
 export default memo(CodeBlock);
+
+export function codeBlockHtml(html: string, lang?: string) {
+  const fragment = document.createElement('div');
+  const div = document.createElement('div');
+  div.innerHTML = html.replace(/<br>/g, '\n');
+  TeactDOM.render(<CodeBlock text={div.innerText} language={lang} noCopy />, fragment);
+  return fragment.innerHTML;
+}
