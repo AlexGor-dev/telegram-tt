@@ -5,6 +5,7 @@ import React, {
 import { getActions, withGlobal } from '../../../../global';
 
 import type { ApiChatFolder } from '../../../../api/types';
+import type { IRadioOption } from '../../../ui/RadioGroup';
 
 import { ALL_FOLDER_ID, STICKER_SIZE_FOLDER_SETTINGS } from '../../../../config';
 import { getFolderDescriptionText } from '../../../../global/helpers';
@@ -14,6 +15,7 @@ import { isBetween } from '../../../../util/math';
 import { MEMO_EMPTY_ARRAY } from '../../../../util/memo';
 import { throttle } from '../../../../util/schedulers';
 import { LOCAL_TGS_URLS } from '../../../common/helpers/animatedAssets';
+import { renderEmoji } from '../../../common/helpers/renderText';
 import { renderTextWithEntities } from '../../../common/helpers/renderTextWithEntities';
 
 import { useFolderManagerForChatsCount } from '../../../../hooks/useFolderManager';
@@ -27,6 +29,7 @@ import Button from '../../../ui/Button';
 import Draggable from '../../../ui/Draggable';
 import ListItem from '../../../ui/ListItem';
 import Loading from '../../../ui/Loading';
+import RadioGroup from '../../../ui/RadioGroup';
 
 type OwnProps = {
   isActive?: boolean;
@@ -36,6 +39,7 @@ type OwnProps = {
 };
 
 type StateProps = {
+  showChatFolderOnTop: boolean;
   folderIds?: number[];
   foldersById: Record<number, ApiChatFolder>;
   recommendedChatFolders?: ApiChatFolder[];
@@ -53,6 +57,7 @@ const FOLDER_HEIGHT_PX = 68;
 const runThrottledForLoadRecommended = throttle((cb) => cb(), 60000, true);
 
 const SettingsFoldersMain: FC<OwnProps & StateProps> = ({
+  showChatFolderOnTop,
   isActive,
   onCreateFolder,
   onEditFolder,
@@ -69,6 +74,7 @@ const SettingsFoldersMain: FC<OwnProps & StateProps> = ({
     openLimitReachedModal,
     openDeleteChatFolderModal,
     sortChatFolders,
+    setSettingOption,
   } = getActions();
 
   const [state, setState] = useState<SortState>({
@@ -143,6 +149,7 @@ const SettingsFoldersMain: FC<OwnProps & StateProps> = ({
       return {
         id: folder.id,
         title: folder.title,
+        emoticon: folder.emoticon,
         subtitle: getFolderDescriptionText(lang, folder, chatsCountByFolderId[folder.id]),
         isChatList: folder.isChatList,
         noTitleAnimations: folder.noTitleAnimations,
@@ -194,6 +201,17 @@ const SettingsFoldersMain: FC<OwnProps & StateProps> = ({
   const canCreateNewFolder = useMemo(() => {
     return !isPremium || Object.keys(foldersById).length < maxFolders - 1;
   }, [foldersById, isPremium, maxFolders]);
+
+  const folderLocationsOptions: IRadioOption[] = [{
+    label: lang('lng_filters_vertical'),
+    value: 'left',
+  }, {
+    label: lang('lng_filters_horizontal'),
+    value: 'top',
+  }];
+  const handleFolderLocationsChange = useCallback((value: string) => {
+    setSettingOption({ showChatFolderOnTop: value === 'top' });
+  }, [setSettingOption]);
 
   return (
     <div className="settings-content no-border custom-scroll">
@@ -248,7 +266,7 @@ const SettingsFoldersMain: FC<OwnProps & StateProps> = ({
                 >
                   <ListItem
                     key={folder.id}
-                    className="drag-item mb-2 no-icon settings-sortable-item"
+                    className="drag-item no-icon settings-sortable-item"
                     narrow
                     inactive
                     multiline
@@ -304,18 +322,24 @@ const SettingsFoldersMain: FC<OwnProps & StateProps> = ({
                     }
                   }}
                 >
-                  <span className="title">
-                    {renderTextWithEntities({
-                      text: folder.title.text,
-                      entities: folder.title.entities,
-                      noCustomEmojiPlayback: folder.noTitleAnimations,
-                    })}
-                    {isBlocked && <Icon name="lock-badge" className="settings-folders-blocked-icon" />}
-                  </span>
-                  <span className="subtitle">
-                    {folder.isChatList && <Icon name="link" className="mr-1" />}
-                    {folder.subtitle}
-                  </span>
+                  <div className="folder-container">
+                    {renderEmoji(folder.emoticon || '💬', 'icon-large')}
+                    <div>
+                      <span className="title">
+                        {renderTextWithEntities({
+                          text: folder.title.text,
+                          entities: folder.title.entities,
+                          noCustomEmojiPlayback: folder.noTitleAnimations,
+                        })}
+                        {isBlocked && <Icon name="lock-badge" className="settings-folders-blocked-icon" />}
+                      </span>
+
+                      <span className="subtitle">
+                        {folder.isChatList && <Icon name="link" className="mr-1" />}
+                        {folder.subtitle}
+                      </span>
+                    </div>
+                  </div>
                 </ListItem>
               </Draggable>
             );
@@ -367,6 +391,16 @@ const SettingsFoldersMain: FC<OwnProps & StateProps> = ({
           ))}
         </div>
       )}
+      <div className="settings-item">
+        <h4 className="settings-item-header" dir={lang.isRtl ? 'rtl' : undefined}>{lang('lng_filters_view_subtitle')}</h4>
+
+        <RadioGroup
+          name="folder-locations"
+          options={folderLocationsOptions}
+          onChange={handleFolderLocationsChange}
+          selected={showChatFolderOnTop ? 'top' : 'left'}
+        />
+      </div>
     </div>
   );
 };
@@ -380,6 +414,7 @@ export default memo(withGlobal<OwnProps>(
     } = global.chatFolders;
 
     return {
+      showChatFolderOnTop: global.settings.byKey.showChatFolderOnTop,
       folderIds,
       foldersById,
       isPremium: selectIsCurrentUserPremium(global),

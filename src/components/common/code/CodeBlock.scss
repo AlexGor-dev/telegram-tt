@@ -46,7 +46,7 @@
 
     html.theme-light & {
       --color-type: #0053d4;
-      --color-keyword: #388e22;
+      --color-keyword: #3f57ad;
       --color-class: #3e6c20;
       --color-string: #9a1111;
       --color-template: #9a5334;
@@ -95,7 +95,7 @@
     .hljs {
       display: block;
       overflow-x: auto;
-      color: var(--color-text);
+      color: var(--color-code);
     }
   }
 }

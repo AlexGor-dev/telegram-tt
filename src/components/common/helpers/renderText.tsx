@@ -2,6 +2,7 @@ import type { TeactNode } from '../../../lib/teact/teact';
 import React from '../../../lib/teact/teact';
 
 import type { TextPart } from '../../../types';
+import type { IconName } from '../../../types/icons';
 
 import {
   BASE_URL, IS_PACKAGED_ELECTRON, RE_LINK_TEMPLATE, RE_MENTION_TEMPLATE,
@@ -19,6 +20,7 @@ import { compact } from '../../../util/iteratees';
 import { IS_EMOJI_SUPPORTED } from '../../../util/windowEnvironment';
 
 import MentionLink from '../../middle/message/MentionLink';
+import Icon from '../icons/Icon';
 import SafeLink from '../SafeLink';
 
 export type TextFilter = (
@@ -28,6 +30,46 @@ export type TextFilter = (
 
 const SIMPLE_MARKDOWN_REGEX = /(\*\*|__).+?\1/g;
 
+export type FolderDesc = {
+  icon: IconName;
+  desc: string;
+};
+
+export const FOLDER_ICONS: Record<string, FolderDesc> = {
+  '🤖': { icon: 'folder-bot', desc: 'lng_filters_type_bots' },
+  '✅': { icon: 'folder-chat', desc: 'lng_filters_edit_chats' },
+  '💬': { icon: 'folder-chats', desc: 'lng_recent_chats' },
+  '👥': { icon: 'folder-group', desc: 'lng_filters_type_groups' },
+  '📢': { icon: 'folder-channel', desc: 'lng_filters_type_channels' },
+  '📁': { icon: 'folder-folder', desc: 'lng_filters_title' },
+  '👤': { icon: 'folder-user', desc: 'NotificationHiddenChatUserName' },
+  '⭐': { icon: 'folder-star', desc: 'FavoriteStickers' },
+};
+
+export function renderEmoji(emoji: string, className = '', size: 'big' | 'small' = 'small') {
+  const desc = FOLDER_ICONS[emoji];
+  if (desc) {
+    return (
+      <Icon name={desc.icon} className={className} />
+    );
+  }
+  const code = nativeToUnifiedExtendedWithCache(emoji);
+  const baseSrcUrl = IS_PACKAGED_ELECTRON ? BASE_URL : '.';
+  const src = `${baseSrcUrl}/img-apple-${size === 'big' ? '160' : '64'}/${code}.png`;
+  const cn = buildClassName(
+    'emoji',
+    className,
+    size === 'small' && 'emoji-small',
+  );
+  return (
+    <img
+      draggable="false"
+      className={cn}
+      src={src}
+      alt={emoji}
+    />
+  );
+}
 export default function renderText(
   part: TextPart,
   filters: Array<TextFilter> = ['emoji'],
@@ -149,6 +191,7 @@ function replaceEmojis(textParts: TextPart[], size: 'big' | 'small', type: 'jsx'
             alt="${emoji}"\
           />`,
           );
+          // emojiResult.push(renderToString(renderEmoji(emoji, size)));
         }
       }
 

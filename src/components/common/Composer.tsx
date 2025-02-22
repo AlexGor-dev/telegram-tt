@@ -107,18 +107,22 @@ import { processMessageInputForCustomEmoji } from '../../util/emoji/customEmojiM
 import focusEditableElement from '../../util/focusEditableElement';
 import { MEMO_EMPTY_ARRAY } from '../../util/memo';
 import parseHtmlAsFormattedText from '../../util/parseHtmlAsFormattedText';
-import { insertHtmlInSelection } from '../../util/selection';
 import { getServerTime } from '../../util/serverTime';
+import { UndoManager } from '../../util/UndoManager';
 import { IS_IOS, IS_VOICE_RECORDING_SUPPORTED } from '../../util/windowEnvironment';
 import windowSize from '../../util/windowSize';
 import applyIosAutoCapitalizationFix from '../middle/composer/helpers/applyIosAutoCapitalizationFix';
 import buildAttachment, { prepareAttachmentsToSend } from '../middle/composer/helpers/buildAttachment';
 import { buildCustomEmojiHtml } from '../middle/composer/helpers/customEmoji';
 import { isSelectionInsideInput } from '../middle/composer/helpers/selection';
+// import { parseMarkdownToAst } from './helpers/markdown-ast';
 import { getPeerColorClass } from './helpers/peerColor';
 import renderText from './helpers/renderText';
+// mycode
 import { getTextWithEntitiesAsHtml } from './helpers/renderTextWithEntities';
 
+// import { insertHtmlInSelection } from '../../util/selection';
+// import { parseMarkdown } from from './helpers/markdown';
 import useInterval from '../../hooks/schedulers/useInterval';
 import useTimeout from '../../hooks/schedulers/useTimeout';
 import useContextMenuHandlers from '../../hooks/useContextMenuHandlers';
@@ -159,7 +163,7 @@ import DropArea, { DropAreaState } from '../middle/composer/DropArea.async';
 import EmojiTooltip from '../middle/composer/EmojiTooltip.async';
 import InlineBotTooltip from '../middle/composer/InlineBotTooltip.async';
 import MentionTooltip from '../middle/composer/MentionTooltip.async';
-import MessageInput from '../middle/composer/MessageInput';
+import MessageInput, {getInputScroller} from '../middle/composer/MessageInput';
 import PollModal from '../middle/composer/PollModal.async';
 import SendAsMenu from '../middle/composer/SendAsMenu.async';
 import StickerTooltip from '../middle/composer/StickerTooltip.async';
@@ -175,6 +179,7 @@ import Icon from './icons/Icon';
 import ReactionAnimatedEmoji from './reactions/ReactionAnimatedEmoji';
 
 import './Composer.scss';
+import {getSelectionRangePosition, insertHtmlInSelection} from "../../util/selection";
 
 type ComposerType = 'messageList' | 'story';
 
@@ -418,7 +423,15 @@ const Composer: FC<OwnProps & StateProps> = ({
 
   // eslint-disable-next-line no-null/no-null
   const inputRef = useRef<HTMLDivElement>(null);
-
+  let undoData = chat?.undoData;
+  if (!undoData && chat) {
+    undoData = UndoManager.cteateData();
+    chat.undoData = undoData;
+  }
+  // const undoManager: UndoManager | undefined = undefined;
+  const undoManager = useMemo(() => {
+    return undoData ? new UndoManager(undoData) : undefined;
+  }, [undoData]);
   // eslint-disable-next-line no-null/no-null
   const storyReactionRef = useRef<HTMLButtonElement>(null);
 
@@ -526,8 +539,19 @@ const Composer: FC<OwnProps & StateProps> = ({
     if (selection.rangeCount) {
       const selectionRange = selection.getRangeAt(0);
       if (isSelectionInsideInput(selectionRange, inInputId)) {
-        insertHtmlInSelection(newHtml);
-        messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+        // mycode
+        if (undoManager) {
+          let [start, end] = getSelectionRangePosition(messageInput);
+          const scroller = getInputScroller(messageInput);
+          undoManager.add(messageInput.innerHTML, start, end, scroller?.scrollTop);
+          insertHtmlInSelection(newHtml);
+          [start, end] = getSelectionRangePosition(messageInput);
+          undoManager.add(messageInput.innerHTML, start, end, scroller?.scrollTop);
+          setHtml(messageInput.innerHTML);
+        } else {
+          document.execCommand('insertHTML', false, newHtml);
+        }
+        // messageInput.dispatchEvent(new Event('input', { bubbles: true }));
         return;
       }
     }
@@ -552,7 +576,7 @@ const Composer: FC<OwnProps & StateProps> = ({
   const insertFormattedTextAndUpdateCursor = useLastCallback((
     text: ApiFormattedText, inInputId: string = editableInputId,
   ) => {
-    const newHtml = getTextWithEntitiesAsHtml(text);
+    const newHtml = getTextWithEntitiesAsHtml(text).replace(/<br>/g, '\n');
     insertHtmlAndUpdateCursor(newHtml, inInputId);
   });
 
@@ -736,11 +760,18 @@ const Composer: FC<OwnProps & StateProps> = ({
     isDisabled: isInStoryViewer || Boolean(requestedDraft),
   });
 
+  function clearUndoHistory() {
+    if (chat && chat.undoData) {
+      chat.undoData = UndoManager.cteateData();
+    }
+  }
+
   const resetComposer = useLastCallback((shouldPreserveInput = false) => {
     if (!shouldPreserveInput) {
       setHtml('');
     }
 
+    clearUndoHistory();
     setAttachments(MEMO_EMPTY_ARRAY);
     setNextText(undefined);
 
@@ -767,6 +798,7 @@ const Composer: FC<OwnProps & StateProps> = ({
     messageListType,
     draft,
     editingDraft,
+    chat,
   );
 
   // Handle chat change (should be placed after `useDraft` and `useEditing`)
@@ -1858,6 +1890,7 @@ const Composer: FC<OwnProps & StateProps> = ({
             onFocus={markInputHasFocus}
             onBlur={unmarkInputHasFocus}
             isNeedPremium={isNeedPremium}
+            undoManager={undoManager}
           />
           {isInMessageList && (
             <>

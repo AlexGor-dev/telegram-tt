@@ -12,7 +12,8 @@ import {
   IOS_DEFAULT_MESSAGE_TEXT_SIZE_PX,
   MACOS_DEFAULT_MESSAGE_TEXT_SIZE_PX,
 } from '../config';
-import { IS_IOS, IS_MAC_OS } from '../util/windowEnvironment';
+import {IS_IOS, IS_MAC_OS, IS_MOBILE} from '../util/windowEnvironment';
+import {getIsMobile} from "../hooks/useAppLayout";
 
 export const INITIAL_PERFORMANCE_STATE_MAX: PerformanceType = {
   animatedEmoji: true,
@@ -282,6 +283,7 @@ export const INITIAL_GLOBAL_STATE: GlobalState = {
       canDisplayChatInTitle: true,
       shouldAllowHttpTransport: true,
       shouldWarnAboutSvg: true,
+      showChatFolderOnTop: IS_MOBILE,
     },
     themes: {
       light: {
@@ -330,6 +332,7 @@ export const INITIAL_TAB_STATE: TabState = {
   messageLists: [],
   activeChatFolder: 0,
   tabThreads: {},
+  emojiSearchQuery: '',
 
   inlineBots: {
     isLoading: false,

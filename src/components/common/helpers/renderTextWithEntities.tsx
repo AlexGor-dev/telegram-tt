@@ -9,13 +9,14 @@ import { ApiMessageEntityTypes } from '../../../api/types';
 
 import buildClassName from '../../../util/buildClassName';
 import { copyTextToClipboard } from '../../../util/clipboard';
+import { jsxToHtmlText } from '../../../util/element/jsxToHtml';
 import { oldTranslate } from '../../../util/oldLangProvider';
 import { buildCustomEmojiHtmlFromEntity } from '../../middle/composer/helpers/customEmoji';
 import renderText from './renderText';
 
 import MentionLink from '../../middle/message/MentionLink';
 import Blockquote from '../Blockquote';
-import CodeBlock from '../code/CodeBlock';
+import CodeBlock, {codeBlockHtml} from '../code/CodeBlock';
 import CustomEmoji from '../CustomEmoji';
 import SafeLink from '../SafeLink';
 import Spoiler from '../spoiler/Spoiler';
@@ -600,7 +601,7 @@ function processEntityAsHtml(
   entityContent: TextPart,
   nestedEntityContent: TextPart[],
 ) {
-  const rawEntityText = typeof entityContent === 'string' ? entityContent : undefined;
+  const rawEntityText = typeof entityContent === 'string' ? entityContent : '';
 
   // Prevent adding newlines when editing
   const content = entity.type === ApiMessageEntityTypes.Pre ? (entityContent as string).trimEnd() : entityContent;
@@ -609,9 +610,10 @@ function processEntityAsHtml(
     ? nestedEntityContent.join('')
     : renderText(content, ['escape_html', 'emoji_html', 'br_html']).join('');
 
-  if (!rawEntityText) {
-    return renderedContent;
-  }
+  // mycode
+  // if (!rawEntityText) {
+  //   return renderedContent;
+  // }
 
   switch (entity.type) {
     case ApiMessageEntityTypes.Bold:
@@ -623,9 +625,12 @@ function processEntityAsHtml(
     case ApiMessageEntityTypes.Code:
       return `<code class="text-entity-code">${renderedContent}</code>`;
     case ApiMessageEntityTypes.Pre:
-      return `\`\`\`${renderText(entity.language || '', ['escape_html'])}<br/>${renderedContent}<br/>\`\`\`<br/>`;
+      // return `<pre class="CodeBlock" data-language='${entity.language}'>${renderedContent}</pre>\n`;
+      return codeBlockHtml(renderedContent, entity.language);
+      // return `${<CodeBlock text={renderedContent} language={entity.language} />}`;
+      // return `\`\`\`${renderText(entity.language || '', ['escape_html'])}<br/>${renderedContent}<br/>\`\`\`<br/>`;
     case ApiMessageEntityTypes.Strike:
-      return `<del>${renderedContent}</del>`;
+      return `<strike>${renderedContent}</strike>`;
     case ApiMessageEntityTypes.MentionName:
       return `<a
         class="text-entity-link"

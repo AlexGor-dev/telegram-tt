@@ -6,6 +6,7 @@ import type { ApiBotVerification, ApiChatInviteImporter } from './misc';
 import type {
   ApiEmojiStatus, ApiFakeType, ApiUser, ApiUsername,
 } from './users';
+import {IUndoData} from "../../util/UndoManager";
 
 type ApiChatType = (
   'chatTypePrivate' | 'chatTypeSecret' |
@@ -91,6 +92,7 @@ export interface ApiChat {
 
   // Locally determined field
   detectedLanguage?: string;
+  undoData?: IUndoData;
 }
 
 export interface ApiTypingStatus {

@@ -8,6 +8,10 @@ import buildClassName from '../../util/buildClassName';
 
 import useOldLang from '../../hooks/useOldLang';
 
+import Sparkles from '../common/Sparkles';
+import RippleEffect from './RippleEffect';
+import Spinner from './Spinner';
+
 type OwnProps = {
   ref?: RefObject<HTMLInputElement>;
   id?: string;
@@ -24,6 +28,7 @@ type OwnProps = {
   tabIndex?: number;
   teactExperimentControlled?: boolean;
   inputMode?: 'text' | 'none' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search';
+  children?: React.ReactNode;
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
   onInput?: (e: FormEvent<HTMLInputElement>) => void;
   onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
@@ -45,6 +50,7 @@ const InputText: FC<OwnProps> = ({
   placeholder,
   autoComplete,
   inputMode,
+  children,
   maxLength,
   tabIndex,
   teactExperimentControlled,
@@ -95,6 +101,8 @@ const InputText: FC<OwnProps> = ({
       {labelText && (
         <label htmlFor={id}>{labelText}</label>
       )}
+      {/* eslint-disable-next-line react/jsx-no-useless-fragment */}
+      {children && <>{children}</>}
     </div>
   );
 };

@@ -32,7 +32,12 @@ export function selectCurrentStickerSearch<T extends GlobalState>(
 ) {
   return selectTabState(global, tabId).stickerSearch;
 }
-
+export function selectCurrentEmojiSearch<T extends GlobalState>(
+  global: T,
+  ...[tabId = getCurrentTabId()]: TabArgs<T>
+) {
+  return selectTabState(global, tabId).emojiSearchQuery;
+}
 export function selectCurrentGifSearch<T extends GlobalState>(
   global: T,
   ...[tabId = getCurrentTabId()]: TabArgs<T>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from '../../../../lib/teact/teact';
 import { getActions } from '../../../../global';
 
-import type { ApiDraft, ApiFormattedText, ApiMessage } from '../../../../api/types';
+import type {
+  ApiChat, ApiDraft, ApiFormattedText, ApiMessage,
+} from '../../../../api/types';
 import type { MessageListType, ThreadId } from '../../../../types';
 import type { Signal } from '../../../../util/signals';
 import { ApiMessageEntityTypes } from '../../../../api/types';
@@ -11,6 +13,7 @@ import { requestMeasure, requestNextMutation } from '../../../../lib/fasterdom/f
 import { hasMessageMedia } from '../../../../global/helpers';
 import focusEditableElement from '../../../../util/focusEditableElement';
 import parseHtmlAsFormattedText from '../../../../util/parseHtmlAsFormattedText';
+import { UndoManager } from '../../../../util/UndoManager';
 import { getTextWithEntitiesAsHtml } from '../../../common/helpers/renderTextWithEntities';
 
 import { useDebouncedResolver } from '../../../../hooks/useAsyncResolvers';
@@ -24,6 +27,7 @@ const URL_ENTITIES = new Set<string>([ApiMessageEntityTypes.TextUrl, ApiMessageE
 const DEBOUNCE_MS = 300;
 
 const useEditing = (
+
   getHtml: Signal<string>,
   setHtml: (html: string) => void,
   editedMessage: ApiMessage | undefined,
@@ -33,6 +37,7 @@ const useEditing = (
   type: MessageListType,
   draft?: ApiDraft,
   editingDraft?: ApiFormattedText,
+  chat?: ApiChat,
 ): [VoidFunction, VoidFunction, boolean] => {
   const {
     editMessage, setEditingDraft, toggleMessageWebPage, openDeleteMessageModal,
@@ -57,8 +62,10 @@ const useEditing = (
     }
 
     const text = !prevEditedMessage && editingDraft?.text.length ? editingDraft : editedMessage.content.text;
-    const html = getTextWithEntitiesAsHtml(text);
-
+    const html = getTextWithEntitiesAsHtml(text).replace(/&lt;br&gt;/g, '\n');
+    if (chat) {
+      chat.undoData = UndoManager.cteateData(html);
+    }
     setHtml(html);
     setShouldForceShowEditing(true);
 

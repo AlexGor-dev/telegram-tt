@@ -9,28 +9,42 @@ import type {
   FolderEditDispatch,
   FoldersState,
 } from '../../../../hooks/reducers/useFoldersReducer';
+import type { FolderDesc } from '../../../common/helpers/renderText';
 
 import { STICKER_SIZE_FOLDER_SETTINGS } from '../../../../config';
 import { isUserId } from '../../../../global/helpers';
-import { selectCanShareFolder } from '../../../../global/selectors';
+import { selectCanShareFolder, selectCurrentEmojiSearch } from '../../../../global/selectors';
 import { selectCurrentLimit } from '../../../../global/selectors/limits';
+import buildClassName from '../../../../util/buildClassName';
 import { findIntersectionWithSet } from '../../../../util/iteratees';
 import { MEMO_EMPTY_ARRAY } from '../../../../util/memo';
 import { CUSTOM_PEER_EXCLUDED_CHAT_TYPES, CUSTOM_PEER_INCLUDED_CHAT_TYPES } from '../../../../util/objects/customPeer';
+import { IS_TOUCH_ENV } from '../../../../util/windowEnvironment';
 import { LOCAL_TGS_URLS } from '../../../common/helpers/animatedAssets';
+import { FOLDER_ICONS, renderEmoji } from '../../../common/helpers/renderText';
 
 import { selectChatFilters } from '../../../../hooks/reducers/useFoldersReducer';
+import useAppLayout from '../../../../hooks/useAppLayout';
+import useFlag from '../../../../hooks/useFlag';
 import useHistoryBack from '../../../../hooks/useHistoryBack';
+import useLastCallback from '../../../../hooks/useLastCallback';
+import useMouseInside from '../../../../hooks/useMouseInside';
 import useOldLang from '../../../../hooks/useOldLang';
 
 import AnimatedIcon from '../../../common/AnimatedIcon';
 import GroupChatInfo from '../../../common/GroupChatInfo';
 import Icon from '../../../common/icons/Icon';
 import PrivateChatInfo from '../../../common/PrivateChatInfo';
+import EmojiPicker from '../../../middle/composer/EmojiPicker';
+import { SYMBOL_MENU_TAB_TITLES } from '../../../middle/composer/SymbolMenuFooter';
+import Button from '../../../ui/Button';
 import FloatingActionButton from '../../../ui/FloatingActionButton';
 import InputText from '../../../ui/InputText';
 import ListItem from '../../../ui/ListItem';
+import Menu from '../../../ui/Menu';
+import SearchInput from '../../../ui/SearchInput';
 import Spinner from '../../../ui/Spinner';
+import Transition from '../../../ui/Transition';
 
 type OwnProps = {
   state: FoldersState;
@@ -54,6 +68,7 @@ type StateProps = {
   maxInviteLinks: number;
   maxChatLists: number;
   chatListCount: number;
+  emojiSearchQuery?: string;
 };
 
 const SUBMIT_TIMEOUT = 500;
@@ -82,11 +97,13 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   maxChatLists,
   chatListCount,
   onSaveFolder,
+  emojiSearchQuery,
 }) => {
   const {
     loadChatlistInvites,
     openLimitReachedModal,
     showNotification,
+    setEmojiSearchQuery,
   } = getActions();
 
   const isCreating = state.mode === 'create';
@@ -158,7 +175,6 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
 
   const handleSubmit = useCallback(() => {
     dispatch({ type: 'setIsLoading', payload: true });
-
     onSaveFolder(() => {
       setTimeout(() => {
         onReset();
@@ -278,7 +294,54 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
       </>
     );
   }
+  const [isSymbolMenuOpen, openSymbolMenu, closeSymbolMenu] = useFlag();
 
+  const handleEmojiSelect = useLastCallback((emoji: string) => {
+    if (state.folder.emoticon && FOLDER_ICONS[emoji] && FOLDER_ICONS[state.folder.emoticon] && (!state.folder.title.text || state.folder.title.text === lang(FOLDER_ICONS[state.folder.emoticon!].desc))) {
+      dispatch({ type: 'setTitle', payload: lang(FOLDER_ICONS[emoji].desc) });
+    }
+    dispatch({ type: 'setIcon', payload: emoji.trim() });
+  });
+  const [activeTab] = useState<number>(0);
+
+  function renderFolderButton(emoji: string, desc: FolderDesc) {
+    return (
+      <Button
+        className={`symbol-set-button ${emoji === state.folder.emoticon ? 'activated' : ''}`}
+        round
+        faded
+        color="translucent"
+        // eslint-disable-next-line react/jsx-no-bind
+        onClick={() => handleEmojiSelect(emoji)}
+        ariaLabel={lang(desc.desc)}
+      >
+        <Icon name={desc.icon} />
+      </Button>
+    );
+  }
+  const { isDesktop, isMobile, isTablet } = useAppLayout();
+  const menuClassName = isMobile ? 'SymbolMenu-mobile' : (isTablet ? 'SymbolMenu-tabled' : '');
+  const renderFolders = useLastCallback(() => {
+    const result: React.JSX.Element[] = [];
+    Object.entries(FOLDER_ICONS).forEach(([key, data]) => result.push(renderFolderButton(key, data)));
+    return result;
+  });
+  function stopPropagation(event: any) {
+    event.stopPropagation();
+  }
+  const [handleMouseEnter, handleMouseLeave] = useMouseInside(isSymbolMenuOpen, closeSymbolMenu, undefined, !isDesktop);
+
+  const handleActivateSymbolMenu = useLastCallback(() => {
+    if (!isSymbolMenuOpen) {
+      openSymbolMenu();
+      handleMouseEnter();
+    } else {
+      closeSymbolMenu();
+    }
+  });
+  const handleEmojiSearchQueryChange = useLastCallback((query: string) => {
+    setEmojiSearchQuery({ query });
+  });
   return (
     <div className="settings-fab-wrapper">
       <div className="settings-content no-border custom-scroll">
@@ -302,7 +365,58 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
             value={state.folder.title.text}
             onChange={handleChange}
             error={state.error && state.error === ERROR_NO_TITLE ? ERROR_NO_TITLE : undefined}
-          />
+          >
+            <Button
+              className={buildClassName('symbol-menu-button', isSymbolMenuOpen && 'activated')}
+              round
+              color="translucent"
+              onClick={handleActivateSymbolMenu}
+              onMouseEnter={!IS_TOUCH_ENV ? handleActivateSymbolMenu : undefined}
+              onMouseLeave={!IS_TOUCH_ENV ? handleMouseLeave : undefined}
+              ariaLabel="Choose emoji"
+            >
+              {renderEmoji(state.folder.emoticon!)}
+            </Button>
+            <div className="Menu-container">
+              <Menu
+                isOpen={isSymbolMenuOpen}
+                onClose={closeSymbolMenu}
+                className={buildClassName('SymbolMenu', menuClassName)}
+                onCloseAnimationEnd={closeSymbolMenu}
+                onMouseEnter={!IS_TOUCH_ENV ? handleMouseEnter : undefined}
+                onMouseLeave={!IS_TOUCH_ENV ? handleMouseLeave : undefined}
+                noCloseOnBackdrop={!IS_TOUCH_ENV}
+                noCompact
+              >
+                <div className="SymbolMenu-main" onClick={stopPropagation}>
+                  <div className="folders-panel">
+                    {renderFolders()}
+                  </div>
+                  <div style="padding:0 0.5rem">
+                    <SearchInput
+                      value={emojiSearchQuery}
+                      placeholder={lang('SearchEmojiHint')}
+                      // autoFocusSearch
+                      onChange={handleEmojiSearchQueryChange}
+                    />
+                  </div>
+                  <Transition
+                    name="slide"
+                    activeKey={activeTab}
+                    renderCount={Object.values(SYMBOL_MENU_TAB_TITLES).length}
+                  >
+
+                    <EmojiPicker
+                      className="picker-tab"
+                      useSearch
+                      onEmojiSelect={handleEmojiSelect}
+                    />
+                  </Transition>
+
+                </div>
+              </Menu>
+            </div>
+          </InputText>
         </div>
 
         {!isOnlyInvites && (
@@ -408,6 +522,7 @@ export default memo(withGlobal<OwnProps>(
       maxInviteLinks: selectCurrentLimit(global, 'chatlistInvites'),
       maxChatLists: selectCurrentLimit(global, 'chatlistJoined'),
       chatListCount,
+      emojiSearchQuery: selectCurrentEmojiSearch(global),
     };
   },
 )(SettingsFoldersEdit));

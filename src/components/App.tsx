@@ -31,6 +31,7 @@ import Main from './main/Main.async';
 import Transition from './ui/Transition';
 
 import styles from './App.module.scss';
+import renderBackgroundAnimated from "./middle/background/BackgroundAnimated";
 
 type StateProps = {
   authState: GlobalState['authState'];
@@ -203,12 +204,12 @@ const App: FC<StateProps> = ({
   }, []);
 
   useLayoutEffect(() => {
+    renderBackgroundAnimated(true);
     document.body.style.setProperty(
       '--theme-background-color',
       theme === 'dark' ? DARK_THEME_BG_COLOR : LIGHT_THEME_BG_COLOR,
     );
   }, [theme]);
-
   return (
     <UiLoader page={page} isMobile={isMobile}>
       <Transition

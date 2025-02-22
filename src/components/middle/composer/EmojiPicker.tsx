@@ -5,7 +5,6 @@ import React, {
 } from '../../../lib/teact/teact';
 import { withGlobal } from '../../../global';
 
-import type { GlobalState } from '../../../global/types';
 import type { IconName } from '../../../types/icons';
 import type {
   EmojiData,
@@ -13,12 +12,12 @@ import type {
   EmojiRawData,
 } from '../../../util/emoji/emoji';
 
-import { MENU_TRANSITION_DURATION, RECENT_SYMBOL_SET_ID } from '../../../config';
+import { MENU_TRANSITION_DURATION, RECENT_SYMBOL_SET_ID, SEARCH_SYMBOL_SET_ID } from '../../../config';
+import { selectCurrentEmojiSearch } from '../../../global/selectors';
 import animateHorizontalScroll from '../../../util/animateHorizontalScroll';
 import animateScroll from '../../../util/animateScroll';
 import buildClassName from '../../../util/buildClassName';
 import { uncompressEmoji } from '../../../util/emoji/emoji';
-import { pick } from '../../../util/iteratees';
 import { MEMO_EMPTY_ARRAY } from '../../../util/memo';
 import { IS_TOUCH_ENV } from '../../../util/windowEnvironment';
 import { REM } from '../../common/helpers/mediaDimensions';
@@ -40,10 +39,14 @@ import './EmojiPicker.scss';
 
 type OwnProps = {
   className?: string;
+  useSearch?:boolean;
   onEmojiSelect: (emoji: string, name: string) => void;
 };
 
-type StateProps = Pick<GlobalState, 'recentEmojis'>;
+type StateProps = {
+  emojiSearchQuery?: string;
+  recentEmojis?: string[];
+};
 
 type EmojiCategoryData = { id: string; name: string; emojis: string[] };
 
@@ -73,6 +76,8 @@ let emojiData: EmojiData;
 
 const EmojiPicker: FC<OwnProps & StateProps> = ({
   className,
+  emojiSearchQuery,
+  useSearch,
   recentEmojis,
   onEmojiSelect,
 }) => {
@@ -221,22 +226,46 @@ const EmojiPicker: FC<OwnProps & StateProps> = ({
     'EmojiPicker-header',
     !shouldHideTopBorder && 'with-top-border',
   );
-
+  let cat: EmojiCategoryData | undefined;
+  if (useSearch && emojiSearchQuery) {
+    cat = {
+      id: SEARCH_SYMBOL_SET_ID,
+      name: lang('FoundEmojis'),
+      emojis: [],
+    };
+    Object.entries(emojis).forEach(([key, data]) => {
+      if (key.startsWith(emojiSearchQuery)) {
+        cat?.emojis.push('id' in data ? data.id : data[1].id);
+      }
+    });
+  }
   return (
     <div className={containerClassName}>
-      <div
-        ref={headerRef}
-        className={headerClassName}
-        dir={lang.isRtl ? 'rtl' : undefined}
-      >
-        {allCategories.map(renderCategoryButton)}
-      </div>
+      {!cat && (
+        <div
+          ref={headerRef}
+          className={headerClassName}
+          dir={lang.isRtl ? 'rtl' : undefined}
+        >
+          {allCategories.map(renderCategoryButton)}
+        </div>
+      )}
       <div
         ref={containerRef}
         onScroll={handleContentScroll}
         className={buildClassName('EmojiPicker-main', IS_TOUCH_ENV ? 'no-scrollbar' : 'custom-scroll')}
       >
-        {allCategories.map((category, i) => (
+        {cat && (
+          <EmojiCategory
+            category={cat}
+            index={0}
+            allEmojis={emojis}
+            observeIntersection={observeIntersection}
+            shouldRender
+            onEmojiSelect={handleEmojiSelect}
+          />
+        )}
+        {!cat && allCategories.map((category, i) => (
           <EmojiCategory
             category={category}
             index={i}
@@ -263,5 +292,10 @@ async function ensureEmojiData() {
 }
 
 export default memo(withGlobal<OwnProps>(
-  (global): StateProps => pick(global, ['recentEmojis']),
+  (global): StateProps => {
+    return {
+      emojiSearchQuery: selectCurrentEmojiSearch(global),
+      recentEmojis: global.recentEmojis,
+    };
+  },
 )(EmojiPicker));

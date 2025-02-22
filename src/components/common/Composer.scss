@@ -385,7 +385,6 @@
 
 .message-input-wrapper {
   display: flex;
-
   .input-scroller {
     margin-right: 0.5rem;
     padding-right: 0.25rem;
@@ -728,6 +727,7 @@
 }
 
 #message-input-text {
+  max-width: calc(100% - 6.3rem);
   .form-control {
     margin-bottom: 0;
     line-height: 1.3125;

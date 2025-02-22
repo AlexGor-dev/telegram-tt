@@ -12983,7 +12983,7 @@ class OggParser extends BasicParser_1.BasicParser {
                 if (header.capturePattern !== 'OggS')
                     throw new Error('Invalid Ogg capture pattern');
                 this.metadata.setFormat('container', 'Ogg');
-                this.header = header;
+                this.headers = header;
                 this.pageNumber = header.pageSequenceNo;
                 debug('page#=%s, Ogg.id=%s', header.pageSequenceNo, header.capturePattern);
                 const segmentTable = await this.tokenizer.readToken(new SegmentTable(header));
@@ -13999,7 +13999,7 @@ class WaveParser extends BasicParser_1.BasicParser {
             if (header.chunkSize > remaining) {
                 this.metadata.addWarning('Data chunk size exceeds file size');
             }
-            this.header = header;
+            this.headers = header;
             debug(`pos=${this.tokenizer.position}, readChunk: chunkID=RIFF/WAVE/${header.chunkID}`);
             switch (header.chunkID) {
                 case 'LIST':
@@ -19330,7 +19330,7 @@ function config (name) {
 /************************************************************************/
 /******/ 	// The module cache
 /******/ 	var __webpack_module_cache__ = {};
-/******/ 	
+/******/
 /******/ 	// The require function
 /******/ 	function __webpack_require__(moduleId) {
 /******/ 		// Check if module is in cache
@@ -19344,14 +19344,14 @@ function config (name) {
 /******/ 			// no module.loaded needed
 /******/ 			exports: {}
 /******/ 		};
-/******/ 	
+/******/
 /******/ 		// Execute the module function
 /******/ 		__webpack_modules__[moduleId](module, module.exports, __webpack_require__);
-/******/ 	
+/******/
 /******/ 		// Return the exports of the module
 /******/ 		return module.exports;
 /******/ 	}
-/******/ 	
+/******/
 /************************************************************************/
 /******/ 	/* webpack/runtime/global */
 /******/ 	(() => {
@@ -19364,14 +19364,14 @@ function config (name) {
 /******/ 			}
 /******/ 		})();
 /******/ 	})();
-/******/ 	
+/******/
 /************************************************************************/
-/******/ 	
+/******/
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	var __webpack_exports__ = __webpack_require__(9620);
-/******/ 	
+/******/
 /******/ 	return __webpack_exports__;
 /******/ })()
 ;

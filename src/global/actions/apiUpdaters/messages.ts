@@ -1103,7 +1103,6 @@ export function deleteThread<T extends GlobalState>(
 
   deleteMessages(global, chatId, messageIds, actions);
 }
-
 export function deleteMessages<T extends GlobalState>(
   global: T, chatId: string | undefined, ids: number[], actions: RequiredGlobalActions,
 ) {

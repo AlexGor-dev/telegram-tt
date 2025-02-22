@@ -17,10 +17,10 @@ import { MAIN_THREAD_ID } from '../../api/types';
 
 import {
   ANIMATION_END_DELAY,
-  ANONYMOUS_USER_ID,
+  ANONYMOUS_USER_ID, DARK_THEME_COLORS,
   EDITABLE_INPUT_CSS_SELECTOR,
   EDITABLE_INPUT_ID,
-  GENERAL_TOPIC_ID,
+  GENERAL_TOPIC_ID, LIGHT_THEME_COLORS,
   SUPPORTED_PHOTO_CONTENT_TYPES,
   SUPPORTED_VIDEO_CONTENT_TYPES,
   TMP_CHAT_ID,
@@ -86,6 +86,7 @@ import SeenByModal from '../common/SeenByModal.async';
 import UnpinAllMessagesModal from '../common/UnpinAllMessagesModal.async';
 import Button from '../ui/Button';
 import Transition from '../ui/Transition';
+import renderBackgroundAnimated from './background/BackgroundAnimated';
 import ChatLanguageModal from './ChatLanguageModal.async';
 import { DropAreaState } from './composer/DropArea';
 import EmojiInteractionAnimation from './EmojiInteractionAnimation.async';
@@ -475,7 +476,9 @@ function MiddleColumn({
     || (isPinnedMessageList && canUnpin) || canShowOpenChatButton || renderingCanUnblock,
   );
   const withExtraShift = Boolean(isMessagingDisabled || isSelectModeActive);
-
+  useEffect(() => {
+    renderBackgroundAnimated(false);
+  }, []);
   return (
     <div
       id="MiddleColumn"
@@ -504,7 +507,9 @@ function MiddleColumn({
       <div
         className={bgClassName}
         style={customBackgroundValue ? `--custom-background: ${customBackgroundValue}` : undefined}
-      />
+      >
+        <canvas id="gradient-canvas" className={buildClassName(styles.canvas)} data-colors={theme === 'dark' ? DARK_THEME_COLORS : LIGHT_THEME_COLORS} />
+      </div>
       <div id="middle-column-portals" />
       {Boolean(renderingChatId && renderingThreadId) && (
         <>

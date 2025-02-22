@@ -615,6 +615,15 @@ async function loadStickers<T extends GlobalState>(
   setGlobal(global);
 }
 
+addActionHandler('setEmojiSearchQuery', (global, actions, payload): ActionReturnType => {
+  const { query, tabId = getCurrentTabId() } = payload!;
+
+  global = getGlobal();
+  global = updateTabState(global, {
+    emojiSearchQuery: query,
+  }, tabId);
+  setGlobal(global);
+});
 addActionHandler('setStickerSearchQuery', (global, actions, payload): ActionReturnType => {
   const { query, tabId = getCurrentTabId() } = payload!;
 
