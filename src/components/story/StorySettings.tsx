@@ -8,7 +8,8 @@ import type {
 } from '../../api/types';
 import type { IconName } from '../../types/icons';
 
-import { getPeerTitle, getUserFullName } from '../../global/helpers';
+import { getUserFullName } from '../../global/helpers';
+import { getPeerTitle } from '../../global/helpers/peers';
 import { selectPeerStory, selectTabState } from '../../global/selectors';
 import buildClassName from '../../util/buildClassName';
 import { getHours } from '../../util/dates/units';
@@ -278,7 +279,6 @@ function StorySettings({
             id="deny-list"
             contactListIds={contactListIds}
             currentUserId={currentUserId}
-            usersById={usersById}
             selectedIds={selectedBlockedIds}
             onSelect={handleDenyUserIdsChange}
           />
@@ -291,7 +291,6 @@ function StorySettings({
             contactListIds={contactListIds}
             lockedIds={lockedIds}
             currentUserId={currentUserId}
-            usersById={usersById}
             selectedIds={privacy?.allowUserIds}
             onSelect={handleAllowUserIdsChange}
           />

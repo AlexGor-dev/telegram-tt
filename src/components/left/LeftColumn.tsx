@@ -9,12 +9,14 @@ import type { FoldersActions } from '../../hooks/reducers/useFoldersReducer';
 import type { ReducerAction } from '../../hooks/useReducer';
 import { LeftColumnContent, SettingsScreens } from '../../types';
 
-import { selectCurrentChat, selectIsForumPanelOpen, selectTabState } from '../../global/selectors';
-import captureEscKeyListener from '../../util/captureEscKeyListener';
-import { captureControlledSwipe } from '../../util/swipeController';
+import {
+  selectCurrentChat, selectIsCurrentUserFrozen, selectIsForumPanelOpen, selectTabState,
+} from '../../global/selectors';
 import {
   IS_APP, IS_FIREFOX, IS_MAC_OS, IS_TOUCH_ENV, LAYERS_ANIMATION_NAME,
-} from '../../util/windowEnvironment';
+} from '../../util/browser/windowEnvironment';
+import captureEscKeyListener from '../../util/captureEscKeyListener';
+import { captureControlledSwipe } from '../../util/swipeController';
 
 import useFoldersReducer from '../../hooks/reducers/useFoldersReducer';
 import { useHotkeys } from '../../hooks/useHotkeys';
@@ -52,6 +54,7 @@ type StateProps = {
   isClosingSearch?: boolean;
   archiveSettings: GlobalState['archiveSettings'];
   isArchivedStoryRibbonShown?: boolean;
+  isAccountFrozen?: boolean;
 };
 
 enum ContentType {
@@ -86,6 +89,7 @@ function LeftColumn({
   isClosingSearch,
   archiveSettings,
   isArchivedStoryRibbonShown,
+  isAccountFrozen,
 }: OwnProps & StateProps) {
   const {
     setGlobalSearchQuery,
@@ -339,6 +343,11 @@ function LeftColumn({
         case SettingsScreens.DoNotTranslate:
           setSettingsScreen(SettingsScreens.Language);
           return;
+
+        case SettingsScreens.PrivacyNoPaidMessages:
+          setSettingsScreen(SettingsScreens.PrivacyMessages);
+          return;
+
         default:
           break;
       }
@@ -540,6 +549,7 @@ function LeftColumn({
             isElectronUpdateAvailable={isElectronUpdateAvailable}
             isForumPanelOpen={isForumPanelOpen}
             onTopicSearch={handleTopicSearch}
+            isAccountFrozen={isAccountFrozen}
           />
         );
     }
@@ -593,6 +603,7 @@ export default memo(withGlobal<OwnProps>(
     const isChatOpen = Boolean(currentChat?.id);
     const isForumPanelOpen = selectIsForumPanelOpen(global);
     const forumPanelChatId = tabState.forumPanelChatId;
+    const isAccountFrozen = selectIsCurrentUserFrozen(global);
 
     return {
       searchQuery: query,
@@ -611,6 +622,7 @@ export default memo(withGlobal<OwnProps>(
       isClosingSearch: tabState.globalSearch.isClosing,
       archiveSettings,
       isArchivedStoryRibbonShown: isArchivedRibbonShown,
+      isAccountFrozen,
     };
   },
 )(LeftColumn));

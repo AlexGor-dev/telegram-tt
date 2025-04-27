@@ -17,7 +17,7 @@ import type {
 } from '../../api/types';
 import type { TabState } from '../../global/types';
 import type {
-  ISettings, ProfileState, ProfileTabType, SharedMediaType, ThreadId,
+  ProfileState, ProfileTabType, SharedMediaType, ThemeKey, ThreadId,
 } from '../../types';
 import type { RegularLangKey } from '../../types/language';
 import { MAIN_THREAD_ID } from '../../api/types';
@@ -60,12 +60,15 @@ import {
   selectUserFullInfo,
 } from '../../global/selectors';
 import { selectPremiumLimit } from '../../global/selectors/limits';
+import { selectSharedSettings } from '../../global/selectors/sharedState';
+import { IS_TOUCH_ENV } from '../../util/browser/windowEnvironment';
 import buildClassName from '../../util/buildClassName';
 import { captureEvents, SwipeDirection } from '../../util/captureEvents';
-import { IS_TOUCH_ENV } from '../../util/windowEnvironment';
+import { LOCAL_TGS_URLS } from '../common/helpers/animatedAssets';
 import renderText from '../common/helpers/renderText';
 import { getSenderName } from '../left/search/helpers/getSenderName';
 
+import { useViewTransition } from '../../hooks/animations/useViewTransition';
 import usePeerStoriesPolling from '../../hooks/polling/usePeerStoriesPolling';
 import useCacheBuster from '../../hooks/useCacheBuster';
 import useEffectWithPrevDeps from '../../hooks/useEffectWithPrevDeps';
@@ -79,6 +82,7 @@ import useProfileState from './hooks/useProfileState';
 import useProfileViewportIds from './hooks/useProfileViewportIds';
 import useTransitionFixes from './hooks/useTransitionFixes';
 
+import AnimatedIconWithPreview from '../common/AnimatedIconWithPreview';
 import Audio from '../common/Audio';
 import Document from '../common/Document';
 import SavedGift from '../common/gift/SavedGift';
@@ -96,6 +100,7 @@ import MediaStory from '../story/MediaStory';
 import Button from '../ui/Button';
 import FloatingActionButton from '../ui/FloatingActionButton';
 import InfiniteScroll from '../ui/InfiniteScroll';
+import Link from '../ui/Link';
 import ListItem, { type MenuItemContextAction } from '../ui/ListItem';
 import Spinner from '../ui/Spinner';
 import TabList from '../ui/TabList';
@@ -110,10 +115,11 @@ type OwnProps = {
   profileState: ProfileState;
   isMobile?: boolean;
   onProfileStateChange: (state: ProfileState) => void;
+  isActive: boolean;
 };
 
 type StateProps = {
-  theme: ISettings['theme'];
+  theme: ThemeKey;
   isChannel?: boolean;
   isBot?: boolean;
   currentUserId?: string;
@@ -173,6 +179,7 @@ const INTERSECTION_THROTTLE = 500;
 
 const Profile: FC<OwnProps & StateProps> = ({
   chatId,
+  isActive,
   threadId,
   profileState,
   theme,
@@ -235,6 +242,7 @@ const Profile: FC<OwnProps & StateProps> = ({
     loadBotRecommendations,
     loadPreviewMedias,
     loadPeerSavedGifts,
+    resetGiftProfileFilter,
   } = getActions();
 
   // eslint-disable-next-line no-null/no-null
@@ -348,9 +356,13 @@ const Profile: FC<OwnProps & StateProps> = ({
     }
   }, [chatId, isBot, similarBots, isSynced]);
 
-  const giftIds = useMemo(() => {
-    return gifts?.map(({ date, gift, fromId }) => `${date}-${fromId}-${gift.id}`);
-  }, [gifts]);
+  const [renderingGifts, setRenderingGifts] = useState(gifts);
+  const { startViewTransition, shouldApplyVtn } = useViewTransition();
+
+  const getGiftId = useLastCallback((gift: ApiSavedStarGift) => (
+    `${gift.date}-${gift.fromId}-${gift.gift.id}`
+  ));
+  const giftIds = useMemo(() => renderingGifts?.map(getGiftId), [renderingGifts]);
 
   const renderingActiveTab = activeTab > tabs.length - 1 ? tabs.length - 1 : activeTab;
   const tabType = tabs[renderingActiveTab].type as ProfileTabType;
@@ -361,11 +373,30 @@ const Profile: FC<OwnProps & StateProps> = ({
     loadPeerProfileStories({ peerId: chatId, offsetId });
   }, [chatId]);
   const handleLoadStoriesArchive = useCallback(({ offsetId }: { offsetId: number }) => {
-    loadStoriesArchive({ peerId: currentUserId!, offsetId });
-  }, [currentUserId]);
+    loadStoriesArchive({ peerId: chatId, offsetId });
+  }, [chatId]);
   const handleLoadGifts = useCallback(() => {
     loadPeerSavedGifts({ peerId: chatId });
   }, [chatId]);
+
+  useEffectWithPrevDeps(([prevGifts]) => {
+    if (!gifts || !prevGifts) {
+      setRenderingGifts(gifts);
+      return;
+    }
+
+    const prevGiftIds = prevGifts.map(getGiftId);
+    const newGiftIds = gifts.map(getGiftId);
+    const hasOrderChanged = prevGiftIds.some((id, index) => id !== newGiftIds[index]);
+
+    if (hasOrderChanged) {
+      startViewTransition(() => {
+        setRenderingGifts(gifts);
+      });
+    } else {
+      setRenderingGifts(gifts);
+    }
+  }, [gifts, startViewTransition]);
 
   const [resultType, viewportIds, getMore, noProfileInfo] = useProfileViewportIds({
     loadMoreMembers,
@@ -480,6 +511,10 @@ const Profile: FC<OwnProps & StateProps> = ({
     setActiveTab(Math.min(newActiveTab, tabs.length - 1));
   }, [hasMembersTab, activeTab, tabs]);
 
+  const handleResetGiftsFilter = useLastCallback(() => {
+    resetGiftProfileFilter({ peerId: chatId });
+  });
+
   useEffect(() => {
     if (!transitionRef.current || !IS_TOUCH_ENV) {
       return undefined;
@@ -521,6 +556,28 @@ const Profile: FC<OwnProps & StateProps> = ({
     }];
   }
 
+  function renderNothingFoundGiftsWithFilter() {
+    return (
+      <div className="nothing-found-gifts">
+        <AnimatedIconWithPreview
+          size={160}
+          tgsUrl={LOCAL_TGS_URLS.SearchingDuck}
+          nonInteractive
+          noLoop
+        />
+        <div className="description">
+          {lang('GiftSearchEmpty')}
+        </div>
+        <Link
+          className="date"
+          onClick={handleResetGiftsFilter}
+        >
+          {lang('GiftSearchReset')}
+        </Link>
+      </div>
+    );
+  }
+
   function renderContent() {
     if (resultType === 'dialogs') {
       return (
@@ -533,14 +590,22 @@ const Profile: FC<OwnProps & StateProps> = ({
       const forceRenderHiddenMembers = Boolean(resultType === 'members' && areMembersHidden);
 
       return (
-        <div className="content empty-list">
+        <div
+          className="content empty-list"
+        >
           {!noSpinner && !forceRenderHiddenMembers && <Spinner />}
           {forceRenderHiddenMembers && <NothingFound text="You have no access to group members list." />}
         </div>
       );
     }
 
-    if (viewportIds && !viewportIds?.length) {
+    const isViewportIdsEmpty = viewportIds && !viewportIds?.length;
+
+    if (isViewportIdsEmpty && resultType === 'gifts') {
+      return renderNothingFoundGiftsWithFilter();
+    }
+
+    if (isViewportIdsEmpty) {
       let text: string;
 
       switch (resultType) {
@@ -764,33 +829,40 @@ const Profile: FC<OwnProps & StateProps> = ({
                   <Icon name="unlock-badge" />
                 </Button>
                 <div className="more-similar">
-                  {renderText(lang('MoreSimilarBotsText', { count: limitSimilarPeers }, {
+                  {renderText(lang('MoreSimilarBotsDescription', { count: limitSimilarPeers }, {
                     withNodes: true,
                     withMarkdown: true,
+                    pluralValue: limitSimilarPeers,
                   }))}
                 </div>
               </>
             )}
           </div>
         ) : resultType === 'gifts' ? (
-          (gifts?.map((gift) => (
-            <SavedGift
-              peerId={chatId}
-              key={`${gift.date}-${gift.fromId}-${gift.gift.id}`}
-              gift={gift}
-              observeIntersection={observeIntersectionForMedia}
-            />
-          )))
+          (renderingGifts?.map((gift) => {
+            return (
+              <SavedGift
+                peerId={chatId}
+                key={getGiftId(gift)}
+                style={shouldApplyVtn ? `view-transition-name: vt${getGiftId(gift)}` : undefined}
+                gift={gift}
+                observeIntersection={observeIntersectionForMedia}
+              />
+            );
+          }))
         ) : undefined}
       </div>
     );
   }
 
+  const activeListSelector = `.shared-media-transition > .Transition_slide-active.${resultType}-list`;
+  const itemSelector = `${activeListSelector} > .scroll-item`;
+
   return (
     <InfiniteScroll
       ref={containerRef}
       className="Profile custom-scroll"
-      itemSelector={`.shared-media-transition > .Transition_slide-active.${resultType}-list > .scroll-item`}
+      itemSelector={itemSelector}
       items={canRenderContent ? viewportIds : undefined}
       cacheBuster={cacheBuster}
       sensitiveArea={PROFILE_SENSITIVE_AREA}
@@ -826,7 +898,8 @@ const Profile: FC<OwnProps & StateProps> = ({
 
       {canAddMembers && (
         <FloatingActionButton
-          isShown={resultType === 'members'}
+          className={buildClassName(!isActive && 'hidden')}
+          isShown={canRenderContent}
           onClick={handleNewMemberDialogOpen}
           ariaLabel={oldLang('lng_channel_add_users')}
         >
@@ -862,6 +935,8 @@ export default memo(withGlobal<OwnProps>(
     const chatFullInfo = selectChatFullInfo(global, chatId);
     const userFullInfo = selectUserFullInfo(global, chatId);
     const messagesById = selectChatMessages(global, chatId);
+
+    const { shouldWarnAboutSvg } = selectSharedSettings(global);
 
     const { currentType: mediaSearchType, resultsByType } = selectCurrentSharedMediaSearch(global) || {};
     const { foundIds } = (resultsByType && mediaSearchType && resultsByType[mediaSearchType]) || {};
@@ -909,7 +984,7 @@ export default memo(withGlobal<OwnProps>(
     const archiveStoryIds = peerStories?.archiveIds;
 
     const hasGiftsTab = Boolean(peerFullInfo?.starGiftCount) && !isSavedDialog;
-    const peerGifts = global.peers.giftsById[chatId];
+    const peerGifts = selectTabState(global).savedGifts.giftsByPeerId[chatId];
 
     return {
       theme: selectTheme(global),
@@ -941,7 +1016,7 @@ export default memo(withGlobal<OwnProps>(
       isChatProtected: chat?.isProtected,
       nextProfileTab: selectTabState(global).nextProfileTab,
       forceScrollProfileTab: selectTabState(global).forceScrollProfileTab,
-      shouldWarnAboutSvg: global.settings.byKey.shouldWarnAboutSvg,
+      shouldWarnAboutSvg,
       similarChannels: similarChannelIds,
       similarBots: similarBotsIds,
       botPreviewMedia,

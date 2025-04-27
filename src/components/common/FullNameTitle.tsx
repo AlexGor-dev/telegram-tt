@@ -15,9 +15,10 @@ import {
   isAnonymousForwardsChat,
   isChatWithRepliesBot,
   isChatWithVerificationCodesBot,
-  isPeerUser,
 } from '../../global/helpers';
+import { isApiPeerUser } from '../../global/helpers/peers';
 import buildClassName from '../../util/buildClassName';
+import buildStyle from '../../util/buildStyle';
 import { copyTextToClipboard } from '../../util/clipboard';
 import stopEvent from '../../util/stopEvent';
 import renderText from './helpers/renderText';
@@ -47,6 +48,7 @@ type OwnProps = {
   iconElement?: React.ReactNode;
   onEmojiStatusClick?: NoneToVoidFunction;
   observeIntersection?: ObserveFn;
+  statusSparklesColor?: string;
 };
 
 const FullNameTitle: FC<OwnProps> = ({
@@ -61,6 +63,7 @@ const FullNameTitle: FC<OwnProps> = ({
   noLoopLimit,
   canCopyTitle,
   iconElement,
+  statusSparklesColor,
   onEmojiStatusClick,
   observeIntersection,
 }) => {
@@ -68,10 +71,12 @@ const FullNameTitle: FC<OwnProps> = ({
   const { showNotification } = getActions();
   const realPeer = 'id' in peer ? peer : undefined;
   const customPeer = 'isCustomPeer' in peer ? peer : undefined;
-  const isUser = realPeer && isPeerUser(realPeer);
+  const isUser = realPeer && isApiPeerUser(realPeer);
   const title = realPeer && (isUser ? getUserFullName(realPeer) : getChatTitle(lang, realPeer));
-  const isPremium = isUser && realPeer.isPremium;
-  const canShowEmojiStatus = withEmojiStatus && !isSavedMessages && realPeer;
+  const isPremium = (isUser && realPeer.isPremium) || customPeer?.isPremium;
+  const canShowEmojiStatus = withEmojiStatus && !isSavedMessages;
+  const emojiStatus = realPeer?.emojiStatus
+    || (customPeer?.emojiStatusId ? { type: 'regular', documentId: customPeer.emojiStatusId } : undefined);
 
   const handleTitleClick = useLastCallback((e) => {
     if (!title || !canCopyTitle) {
@@ -85,7 +90,7 @@ const FullNameTitle: FC<OwnProps> = ({
 
   const specialTitle = useMemo(() => {
     if (customPeer) {
-      return customPeer.title || lang(customPeer.titleKey!);
+      return renderText(customPeer.title || lang(customPeer.titleKey!));
     }
 
     if (isSavedMessages) {
@@ -134,17 +139,22 @@ const FullNameTitle: FC<OwnProps> = ({
         <>
           {!noVerified && peer?.isVerified && <VerifiedIcon />}
           {!noFake && peer?.fakeType && <FakeIcon fakeType={peer.fakeType} />}
-          {canShowEmojiStatus && realPeer.emojiStatus && (
+          {canShowEmojiStatus && emojiStatus && (
             <Transition
-              className={styles.transition}
-              activeKey={Number(realPeer.emojiStatus.documentId)}
-              name="fade"
+              className={styles.statusTransition}
+              slideClassName={styles.statusTransitionSlide}
+              activeKey={Number(emojiStatus.documentId)}
+              name="slideFade"
+              direction={-1}
               shouldCleanup
-              shouldRestoreHeight
             >
               <CustomEmoji
                 forceAlways
-                documentId={realPeer.emojiStatus.documentId}
+                className="no-selection"
+                withSparkles={emojiStatus.type === 'collectible'}
+                sparklesClassName="statusSparkles"
+                sparklesStyle={buildStyle(statusSparklesColor && `color: ${statusSparklesColor}`)}
+                documentId={emojiStatus.documentId}
                 size={emojiStatusSize}
                 loopLimit={!noLoopLimit ? EMOJI_STATUS_LOOP_LIMIT : undefined}
                 observeIntersectionForLoading={observeIntersection}
@@ -152,7 +162,7 @@ const FullNameTitle: FC<OwnProps> = ({
               />
             </Transition>
           )}
-          {canShowEmojiStatus && !realPeer.emojiStatus && isPremium && <StarIcon />}
+          {canShowEmojiStatus && !emojiStatus && isPremium && <StarIcon />}
         </>
       )}
       {iconElement}

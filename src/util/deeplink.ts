@@ -1,12 +1,11 @@
 import { getActions } from '../global';
 
 import type { ApiChatType, ApiFormattedText } from '../api/types';
-import type { DeepLinkMethod, PrivateMessageLink } from './deepLinkParser';
+import type { DeepLinkMethod } from './deepLinkParser';
 
 import { API_CHAT_TYPES, RE_TG_LINK } from '../config';
-import { toChannelId } from '../global/helpers';
+import { IS_BAD_URL_PARSER } from './browser/globalEnvironment';
 import { tryParseDeepLink } from './deepLinkParser';
-import { IS_BAD_URL_PARSER } from './windowEnvironment';
 
 export const processDeepLink = (url: string): boolean => {
   const actions = getActions();
@@ -15,7 +14,13 @@ export const processDeepLink = (url: string): boolean => {
   if (parsedLink) {
     switch (parsedLink.type) {
       case 'privateMessageLink':
-        handlePrivateMessageLink(parsedLink, actions);
+        actions.openPrivateChannel({
+          id: parsedLink.channelId,
+          threadId: parsedLink.threadId,
+          messageId: parsedLink.messageId,
+          commentId: parsedLink.commentId,
+          timestamp: parsedLink.timestamp,
+        });
         return true;
       case 'publicMessageLink': {
         actions.openChatByUsername({
@@ -23,6 +28,7 @@ export const processDeepLink = (url: string): boolean => {
           threadId: parsedLink.threadId,
           messageId: parsedLink.messageId,
           commentId: parsedLink.commentId,
+          timestamp: parsedLink.timestamp,
         });
         return true;
       }
@@ -223,22 +229,13 @@ export function formatShareText(url?: string, text?: string, title?: string): Ap
   };
 }
 
-function handlePrivateMessageLink(link: PrivateMessageLink, actions: ReturnType<typeof getActions>) {
-  const {
-    focusMessage,
-  } = actions;
-  const {
-    channelId, messageId, threadId,
-  } = link;
-  focusMessage({
-    chatId: toChannelId(channelId),
-    threadId,
-    messageId,
-  });
-}
-
 function parseChooseParameter(choose?: string) {
   if (!choose) return undefined;
-  const types = choose.toLowerCase().split(' ');
+  const types = choose.toLowerCase().split(' ').flatMap((type) => {
+    if (type === 'groups') {
+      return ['chats', 'groups'];
+    }
+    return [type];
+  });
   return types.filter((type): type is ApiChatType => API_CHAT_TYPES.includes(type as ApiChatType));
 }

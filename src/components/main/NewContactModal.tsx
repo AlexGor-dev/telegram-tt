@@ -8,8 +8,8 @@ import type { ApiCountryCode, ApiUser, ApiUserStatus } from '../../api/types';
 
 import { getUserStatus } from '../../global/helpers';
 import { selectUser, selectUserStatus } from '../../global/selectors';
+import { IS_TOUCH_ENV } from '../../util/browser/windowEnvironment';
 import { formatPhoneNumberWithCode } from '../../util/phoneNumber';
-import { IS_TOUCH_ENV } from '../../util/windowEnvironment';
 import renderText from '../common/helpers/renderText';
 
 import useCurrentOrPrev from '../../hooks/useCurrentOrPrev';
@@ -157,12 +157,13 @@ const NewContactModal: FC<OwnProps & StateProps> = ({
           )}
         </p>
         <Checkbox
+          className="dialog-checkbox"
           checked={shouldSharePhoneNumber}
           tabIndex={0}
           onCheck={setShouldSharePhoneNumber}
           label={lang('lng_new_contact_share')}
         />
-        <p className="NewContactModal__help-text">
+        <p className="NewContactModal__help-text NewContactModal__help-text__negative">
           {renderText(lang('AddContact.SharedContactExceptionInfo', renderingUser?.firstName))}
         </p>
       </>

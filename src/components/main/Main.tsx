@@ -19,6 +19,7 @@ import {
   selectChatFolder,
   selectChatMessage,
   selectCurrentMessageList,
+  selectIsCurrentUserFrozen,
   selectIsCurrentUserPremium,
   selectIsForwardModalOpen,
   selectIsMediaViewerOpen,
@@ -30,13 +31,14 @@ import {
   selectTabState,
   selectUser,
 } from '../../global/selectors';
+import { selectSharedSettings } from '../../global/selectors/sharedState';
+import { IS_ANDROID, IS_ELECTRON, IS_WAVE_TRANSFORM_SUPPORTED } from '../../util/browser/windowEnvironment';
 import buildClassName from '../../util/buildClassName';
 import { waitForTransitionEnd } from '../../util/cssAnimationEndListeners';
 import { processDeepLink } from '../../util/deeplink';
 import { Bundles, loadBundle } from '../../util/moduleLoader';
 import { parseInitialLocationHash, parseLocationHash } from '../../util/routing';
 import updateIcon from '../../util/updateIcon';
-import { IS_ANDROID, IS_ELECTRON, IS_WAVE_TRANSFORM_SUPPORTED } from '../../util/windowEnvironment';
 
 import useInterval from '../../hooks/schedulers/useInterval';
 import useTimeout from '../../hooks/schedulers/useTimeout';
@@ -140,6 +142,8 @@ type StateProps = {
   noRightColumnAnimation?: boolean;
   withInterfaceAnimations?: boolean;
   isSynced?: boolean;
+  isAccountFrozen?: boolean;
+  isAppConfigLoaded?: boolean;
 };
 
 const APP_OUTDATED_TIMEOUT_MS = 5 * 60 * 1000; // 5 min
@@ -193,6 +197,8 @@ const Main = ({
   noRightColumnAnimation,
   isSynced,
   currentUserId,
+  isAccountFrozen,
+  isAppConfigLoaded,
 }: OwnProps & StateProps) => {
   const {
     initMain,
@@ -230,6 +236,7 @@ const Main = ({
     openThread,
     toggleLeftColumn,
     loadRecentEmojiStatuses,
+    loadUserCollectibleStatuses,
     updatePageTitle,
     loadTopReactions,
     loadRecentReactions,
@@ -246,6 +253,10 @@ const Main = ({
     loadTopBotApps,
     loadPaidReactionPrivacy,
     loadPasswordInfo,
+    loadBotFreezeAppeal,
+    loadAllChats,
+    loadAllStories,
+    loadAllHiddenStories,
   } = getActions();
 
   if (DEBUG && !DEBUG_isLogged) {
@@ -307,44 +318,54 @@ const Main = ({
       loadAppConfig();
       loadPeerColors();
       initMain();
-      loadAvailableReactions();
-      loadAnimatedEmojis();
-      loadNotificationSettings();
-      loadNotificationExceptions();
-      loadAttachBots();
       loadContactList();
-      loadDefaultTopicIcons();
       checkAppVersion();
-      loadTopReactions();
+      loadAuthorizations();
+      loadPasswordInfo();
+    }
+  }, [isMasterTab, isSynced]);
+
+  // Initial API calls
+  useEffect(() => {
+    if (isMasterTab && isSynced && isAppConfigLoaded && !isAccountFrozen) {
+      loadAllChats({ listType: 'saved' });
+      loadAllStories();
+      loadAllHiddenStories();
       loadRecentReactions();
       loadDefaultTagReactions();
-      loadFeaturedEmojiStickers();
+      loadAttachBots();
+      loadNotificationSettings();
+      loadNotificationExceptions();
       loadTopInlineBots();
-      loadEmojiKeywords({ language: BASE_EMOJI_KEYWORD_LANG });
-      loadTimezones();
-      loadQuickReplies();
+      loadTopReactions();
       loadStarStatus();
+      loadEmojiKeywords({ language: BASE_EMOJI_KEYWORD_LANG });
+      loadFeaturedEmojiStickers();
+      loadSavedReactionTags();
+      loadTopBotApps();
+      loadPaidReactionPrivacy();
+      loadDefaultTopicIcons();
+      loadAnimatedEmojis();
+      loadAvailableReactions();
+      loadUserCollectibleStatuses();
+      loadGenericEmojiEffects();
       loadPremiumGifts();
       loadStarGifts();
       loadAvailableEffects();
       loadBirthdayNumbersStickers();
       loadRestrictedEmojiStickers();
-      loadGenericEmojiEffects();
-      loadSavedReactionTags();
-      loadAuthorizations();
-      loadTopBotApps();
-      loadPaidReactionPrivacy();
-      loadPasswordInfo();
+      loadQuickReplies();
+      loadTimezones();
     }
-  }, [isMasterTab, isSynced]);
+  }, [isMasterTab, isSynced, isAppConfigLoaded, isAccountFrozen]);
 
   // Initial Premium API calls
   useEffect(() => {
-    if (isMasterTab && isCurrentUserPremium) {
+    if (isMasterTab && isCurrentUserPremium && isAppConfigLoaded && !isAccountFrozen) {
       loadDefaultStatusIcons();
       loadRecentEmojiStatuses();
     }
-  }, [isCurrentUserPremium, isMasterTab]);
+  }, [isCurrentUserPremium, isMasterTab, isAppConfigLoaded, isAccountFrozen]);
 
   // Language-based API calls
   useEffect(() => {
@@ -354,8 +375,6 @@ const Main = ({
       }
 
       loadCountryList({ langCode: lang.code });
-
-      loadAttachBots();
     }
   }, [lang, isMasterTab]);
 
@@ -371,7 +390,7 @@ const Main = ({
 
   // Sticker sets
   useEffect(() => {
-    if (isMasterTab && isSynced) {
+    if (isMasterTab && isSynced && isAppConfigLoaded && !isAccountFrozen) {
       if (!addedSetIds || !addedCustomEmojiIds) {
         loadStickerSets();
         loadFavoriteStickers();
@@ -381,7 +400,11 @@ const Main = ({
         loadAddedStickers();
       }
     }
-  }, [addedSetIds, addedCustomEmojiIds, isMasterTab, isSynced]);
+  }, [addedSetIds, addedCustomEmojiIds, isMasterTab, isSynced, isAppConfigLoaded, isAccountFrozen]);
+
+  useEffect(() => {
+    loadBotFreezeAppeal();
+  }, [isAppConfigLoaded]);
 
   // Check version when service chat is ready
   useEffect(() => {
@@ -596,11 +619,6 @@ const Main = ({
 export default memo(withGlobal<OwnProps>(
   (global, { isMobile }): StateProps => {
     const {
-      settings: {
-        byKey: {
-          wasTimeFormatSetManually,
-        },
-      },
       currentUserId,
     } = global;
 
@@ -629,6 +647,8 @@ export default memo(withGlobal<OwnProps>(
       deleteFolderDialogModal,
     } = selectTabState(global);
 
+    const { wasTimeFormatSetManually } = selectSharedSettings(global);
+
     const gameMessage = openedGame && selectChatMessage(global, openedGame.chatId, openedGame.messageId);
     const gameTitle = gameMessage?.content.game?.title;
     const { chatId } = selectCurrentMessageList(global) || {};
@@ -636,6 +656,7 @@ export default memo(withGlobal<OwnProps>(
         || !selectCanAnimateInterface(global);
 
     const deleteFolderDialog = deleteFolderDialogModal ? selectChatFolder(global, deleteFolderDialogModal) : undefined;
+    const isAccountFrozen = selectIsCurrentUserFrozen(global);
 
     return {
       currentUserId,
@@ -681,6 +702,8 @@ export default memo(withGlobal<OwnProps>(
       requestedDraft,
       noRightColumnAnimation,
       isSynced: global.isSynced,
+      isAccountFrozen,
+      isAppConfigLoaded: global.isAppConfigLoaded,
     };
   },
 )(Main));

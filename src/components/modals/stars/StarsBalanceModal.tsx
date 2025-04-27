@@ -7,7 +7,9 @@ import type { ApiStarTopupOption } from '../../../api/types';
 import type { GlobalState, TabState } from '../../../global/types';
 import type { RegularLangKey } from '../../../types/language';
 
-import { getChatTitle, getPeerTitle, getUserFullName } from '../../../global/helpers';
+import { PAID_MESSAGES_PURPOSE } from '../../../config';
+import { getChatTitle, getUserFullName } from '../../../global/helpers';
+import { getPeerTitle } from '../../../global/helpers/peers';
 import { selectChat, selectIsPremiumPurchaseBlocked, selectUser } from '../../../global/selectors';
 import buildClassName from '../../../util/buildClassName';
 import renderText from '../../common/helpers/renderText';
@@ -18,7 +20,6 @@ import useLastCallback from '../../../hooks/useLastCallback';
 import useOldLang from '../../../hooks/useOldLang';
 
 import Icon from '../../common/icons/Icon';
-import StarIcon from '../../common/icons/StarIcon';
 import SafeLink from '../../common/SafeLink';
 import Button from '../../ui/Button';
 import InfiniteScroll from '../../ui/InfiniteScroll';
@@ -51,10 +52,11 @@ export type OwnProps = {
 type StateProps = {
   starsBalanceState?: GlobalState['stars'];
   canBuyPremium?: boolean;
+  shouldForceHeight?: boolean;
 };
 
 const StarsBalanceModal = ({
-  modal, starsBalanceState, canBuyPremium,
+  modal, starsBalanceState, canBuyPremium, shouldForceHeight,
 }: OwnProps & StateProps) => {
   const {
     closeStarsBalanceModal, loadStarsTransactions, loadStarsSubscriptions, openStarsGiftingPickerModal, openInvoice,
@@ -106,6 +108,13 @@ const StarsBalanceModal = ({
 
     if (topup?.purpose === SUBSCRIPTION_PURPOSE) {
       return oldLang('StarsNeededTextLink');
+    }
+
+    if (topup?.purpose === PAID_MESSAGES_PURPOSE) {
+      return lang('StarsNeededTextSendPaidMessages', undefined, {
+        withMarkdown: true,
+        withNodes: true,
+      });
     }
 
     return undefined;
@@ -179,7 +188,11 @@ const StarsBalanceModal = ({
   });
 
   return (
-    <Modal className={styles.root} isOpen={isOpen} onClose={closeStarsBalanceModal}>
+    <Modal
+      className={buildClassName(styles.root, !shouldForceHeight && !areBuyOptionsShown && styles.minimal)}
+      isOpen={isOpen}
+      onClose={closeStarsBalanceModal}
+    >
       <div className={buildClassName(styles.main, 'custom-scroll')} onScroll={handleScroll}>
         <Button
           round
@@ -220,11 +233,11 @@ const StarsBalanceModal = ({
           )}
           {canBuyPremium && !areBuyOptionsShown && shouldSuggestGifting && (
             <Button
-              className={buildClassName(styles.starButton, 'settings-main-menu-star')}
-              color="translucent"
+              isText
+              noForcedUpperCase
+              className={styles.starButton}
               onClick={openStarsGiftingPickerModalHandler}
             >
-              <StarIcon className="icon" type="gold" size="big" />
               {oldLang('TelegramStarsGift')}
             </Button>
           )}
@@ -284,6 +297,7 @@ const StarsBalanceModal = ({
                   itemSelector={`.${TRANSACTION_ITEM_CLASS}`}
                   className={styles.transactions}
                   noFastList
+                  noScrollRestoreOnTop
                 >
                   {history?.[TRANSACTION_TYPES[selectedTabIndex]]?.transactions.map((transaction) => (
                     <StarsTransactionItem
@@ -311,7 +325,10 @@ const StarsBalanceModal = ({
 
 export default memo(withGlobal<OwnProps>(
   (global): StateProps => {
+    const shouldForceHeight = Boolean(global.stars?.history?.all?.transactions.length);
+
     return {
+      shouldForceHeight,
       starsBalanceState: global.stars,
       canBuyPremium: !selectIsPremiumPurchaseBlocked(global),
     };

@@ -72,6 +72,7 @@ import {
   selectUser,
   selectUserStatus,
 } from '../../../global/selectors';
+import buildClassName from '../../../util/buildClassName';
 import { copyTextToClipboard } from '../../../util/clipboard';
 import { getSelectionAsFormattedText } from './helpers/getSelectionAsFormattedText';
 import { isSelectionRangeInsideMessage } from './helpers/isSelectionRangeInsideMessage';
@@ -96,6 +97,7 @@ export type OwnProps = {
   noReplies?: boolean;
   detectedLanguage?: string;
   repliesThreadInfo?: ApiThreadInfo;
+  className?: string;
   onClose: NoneToVoidFunction;
   onCloseAnimationEnd: NoneToVoidFunction;
 };
@@ -157,6 +159,7 @@ type StateProps = {
 };
 
 const selection = window.getSelection();
+const UNQUOTABLE_OFFSET = -1;
 
 const ContextMenuContainer: FC<OwnProps & StateProps> = ({
   threadId,
@@ -217,10 +220,11 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
   isInSavedMessages,
   canReplyInChat,
   isWithPaidReaction,
-  onClose,
-  onCloseAnimationEnd,
   userFullName,
   canGift,
+  className,
+  onClose,
+  onCloseAnimationEnd,
 }) => {
   const {
     openThread,
@@ -269,7 +273,7 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(true);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [isClosePollDialogOpen, openClosePollDialog, closeClosePollDialog] = useFlag();
-  const [canQuoteSelection, setCanQuoteSelection] = useState(false);
+  const [selectionQuoteOffset, setSelectionQuoteOffset] = useState(UNQUOTABLE_OFFSET);
   const [requestCalendar, calendar] = useSchedule(canScheduleUntilOnline, onClose, message.date);
 
   // `undefined` indicates that emoji are present and loading
@@ -346,7 +350,7 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
 
   useEffect(() => {
     if (isMessageTranslated) {
-      setCanQuoteSelection(false);
+      setSelectionQuoteOffset(UNQUOTABLE_OFFSET);
       return;
     }
 
@@ -356,16 +360,22 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
       && isSelectionRangeInsideMessage(selectionRange);
 
     if (!isMessageTextSelected) {
-      setCanQuoteSelection(false);
+      setSelectionQuoteOffset(UNQUOTABLE_OFFSET);
       return;
     }
 
     const selectionText = getSelectionAsFormattedText(selectionRange);
 
-    setCanQuoteSelection(
-      selectionText.text.trim().length > 0
-      && message.content.text!.text!.includes(selectionText.text),
-    );
+    const messageText = message.content.text!.text!.replace(/\u00A0/g, ' ');
+
+    const canQuote = selectionText.text.trim().length > 0
+      && messageText.includes(selectionText.text);
+    if (!canQuote) {
+      setSelectionQuoteOffset(UNQUOTABLE_OFFSET);
+      return;
+    }
+
+    setSelectionQuoteOffset(selectionRange.startOffset);
   }, [
     selectionRange, selectionRange?.collapsed, selectionRange?.startOffset, selectionRange?.endOffset,
     isMessageTranslated, message.content.text,
@@ -379,7 +389,14 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
   const handleDelete = useLastCallback(() => {
     setIsMenuOpen(false);
     closeMenu();
-    openDeleteMessageModal({ isSchedule: messageListType === 'scheduled', album, message });
+    const messageIds = album?.messages
+      ? album.messages.map(({ id }) => id)
+      : [message.id];
+    openDeleteMessageModal({
+      chatId: message.chatId,
+      messageIds,
+      isSchedule: messageListType === 'scheduled',
+    });
   });
 
   const closePinModal = useLastCallback(() => {
@@ -388,13 +405,17 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
   });
 
   const handleReply = useLastCallback(() => {
-    const quoteText = canQuoteSelection && selectionRange ? getSelectionAsFormattedText(selectionRange) : undefined;
+    const quoteText = selectionQuoteOffset !== UNQUOTABLE_OFFSET && selectionRange
+      ? getSelectionAsFormattedText(selectionRange) : undefined;
     if (!canReplyInChat) {
-      openReplyMenu({ fromChatId: message.chatId, messageId: message.id, quoteText });
+      openReplyMenu({
+        fromChatId: message.chatId, messageId: message.id, quoteText, quoteOffset: selectionQuoteOffset,
+      });
     } else {
       updateDraftReplyInfo({
         replyToMsgId: message.id,
         quoteText,
+        quoteOffset: selectionQuoteOffset,
         replyToPeerId: undefined,
       });
     }
@@ -614,7 +635,7 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
   scheduledMaxDate.setFullYear(scheduledMaxDate.getFullYear() + 1);
 
   return (
-    <div ref={containerRef} className="ContextMenuContainer">
+    <div ref={containerRef} className={buildClassName('ContextMenuContainer', className)}>
       <MessageContextMenu
         isReactionPickerOpen={isReactionPickerOpen}
         availableReactions={availableReactions}
@@ -635,7 +656,7 @@ const ContextMenuContainer: FC<OwnProps & StateProps> = ({
         canSendNow={canSendNow}
         canReschedule={canReschedule}
         canReply={canReply}
-        canQuote={canQuoteSelection}
+        canQuote={selectionQuoteOffset !== UNQUOTABLE_OFFSET}
         canDelete={canDelete}
         canPin={canPin}
         canReport={canReport}

@@ -5,6 +5,7 @@ import React, {
 import { getActions, withGlobal } from '../../../global';
 
 import type {
+  ApiDisallowedGifts,
   ApiPeer,
   ApiPremiumGiftCodeOption,
   ApiStarGiftRegular,
@@ -13,9 +14,10 @@ import type {
 import type { TabState } from '../../../global/types';
 import type { StarGiftCategory } from '../../../types';
 
-import { getPeerTitle, getUserFullName } from '../../../global/helpers';
-import { isApiPeerChat, isApiPeerUser } from '../../../global/helpers/peers';
-import { selectPeer } from '../../../global/selectors';
+import { STARS_CURRENCY_CODE } from '../../../config';
+import { getUserFullName } from '../../../global/helpers';
+import { getPeerTitle, isApiPeerChat, isApiPeerUser } from '../../../global/helpers/peers';
+import { selectPeer, selectUserFullInfo } from '../../../global/selectors';
 import buildClassName from '../../../util/buildClassName';
 import { throttle } from '../../../util/schedulers';
 
@@ -53,6 +55,7 @@ type StateProps = {
   starBalance?: ApiStarsAmount;
   peer?: ApiPeer;
   isSelf?: boolean;
+  disallowedGifts?: ApiDisallowedGifts;
 };
 
 const AVATAR_SIZE = 100;
@@ -61,16 +64,17 @@ const SCROLL_THROTTLE = 200;
 
 const runThrottledForScroll = throttle((cb) => cb(), SCROLL_THROTTLE, true);
 
-const PremiumGiftModal: FC<OwnProps & StateProps> = ({
+const GiftModal: FC<OwnProps & StateProps> = ({
   modal,
   starGiftsById,
   starGiftIdsByCategory,
   starBalance,
   peer,
   isSelf,
+  disallowedGifts,
 }) => {
   const {
-    closeGiftModal, requestConfetti,
+    closeGiftModal,
   } = getActions();
   // eslint-disable-next-line no-null/no-null
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -89,18 +93,51 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
   const chat = peer && isApiPeerChat(peer) ? peer : undefined;
 
   const [selectedGift, setSelectedGift] = useState<GiftOption | undefined>();
-  const [isHeaderHidden, setIsHeaderHidden] = useState(true);
-  const [isHeaderForStarGifts, setIsHeaderForStarGifts] = useState(false);
+  const [shouldShowMainScreenHeader, setShouldShowMainScreenHeader] = useState(false);
+  const [isMainScreenHeaderForStarGifts, setIsMainScreenHeaderForStarGifts] = useState(false);
+  const [isGiftScreenHeaderForStarGifts, setIsGiftScreenHeaderForStarGifts] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState<StarGiftCategory>('all');
 
+  const areAllGiftsDisallowed = useMemo(() => {
+    if (!disallowedGifts) {
+      return undefined;
+    }
+    const {
+      shouldDisallowPremiumGifts,
+      ...disallowedGiftTypes
+    } = disallowedGifts;
+    return !isSelf && Object.values(disallowedGiftTypes).every(Boolean);
+  }, [isSelf, disallowedGifts]);
+
+  const areUnlimitedStarGiftsDisallowed = !isSelf && disallowedGifts?.shouldDisallowUnlimitedStarGifts;
+  const areLimitedStarGiftsDisallowed = !isSelf && disallowedGifts?.shouldDisallowLimitedStarGifts;
+
   const oldLang = useOldLang();
   const lang = useLang();
-
+  const allGifts = renderingModal?.gifts;
   const filteredGifts = useMemo(() => {
-    return renderingModal?.gifts?.sort((prevGift, gift) => prevGift.months - gift.months)
-      .filter((gift) => gift.users === 1);
-  }, [renderingModal]);
+    return allGifts?.sort((prevGift, gift) => prevGift.months - gift.months)
+      .filter((gift) => gift.users === 1 && gift.currency !== 'XTR');
+  }, [allGifts]);
+
+  const giftsByStars = useMemo(() => {
+    const mapGifts = new Map();
+
+    if (!filteredGifts) return mapGifts;
+
+    filteredGifts.forEach((gift) => {
+      const giftByStars = allGifts?.find(
+        (starsGift) => starsGift.currency === STARS_CURRENCY_CODE
+        && starsGift.months === gift.months,
+      );
+      if (giftByStars) {
+        mapGifts.set(gift, giftByStars);
+      }
+    });
+
+    return mapGifts;
+  }, [allGifts, filteredGifts]);
 
   const baseGift = useMemo(() => {
     return filteredGifts?.reduce((prev, gift) => (prev.amount < gift.amount ? prev : gift));
@@ -110,50 +147,31 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
     observe: observeIntersection,
   } = useIntersectionObserver({ rootRef: scrollerRef, throttleMs: INTERSECTION_THROTTLE, isDisabled: !isOpen });
 
-  const showConfetti = useLastCallback(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (isOpen) {
-      const {
-        top, left, width, height,
-      } = dialog.querySelector('.modal-content')!.getBoundingClientRect();
-      requestConfetti({
-        top,
-        left,
-        width,
-        height,
-        withStars: true,
-      });
-    }
-  });
-
-  useEffect(() => {
-    if (renderingModal?.isCompleted) {
-      showConfetti();
-    }
-  }, [renderingModal]);
+  const isGiftScreen = Boolean(selectedGift);
+  const shouldShowHeader = isGiftScreen || shouldShowMainScreenHeader;
+  const isHeaderForStarGifts = isGiftScreen ? isGiftScreenHeaderForStarGifts : isMainScreenHeaderForStarGifts;
 
   useEffect(() => {
     if (!isOpen) {
-      setIsHeaderHidden(true);
+      setShouldShowMainScreenHeader(false);
       setSelectedGift(undefined);
       setSelectedCategory('all');
     }
   }, [isOpen]);
 
   const handleScroll = useLastCallback((e: React.UIEvent<HTMLDivElement>) => {
-    if (selectedGift) return;
+    if (isGiftScreen) return;
     const currentTarget = e.currentTarget;
 
     runThrottledForScroll(() => {
       const { scrollTop } = currentTarget;
 
-      setIsHeaderHidden(scrollTop <= 150);
+      setShouldShowMainScreenHeader(scrollTop > 150);
 
       if (transitionRef.current && giftHeaderRef.current) {
         const { top: headerTop } = giftHeaderRef.current.getBoundingClientRect();
         const { top: transitionTop } = transitionRef.current.getBoundingClientRect();
-        setIsHeaderForStarGifts(headerTop - transitionTop <= 0);
+        setIsMainScreenHeaderForStarGifts(headerTop - transitionTop <= 0);
       }
     });
   });
@@ -216,17 +234,35 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
 
   const handleGiftClick = useLastCallback((gift: GiftOption) => {
     setSelectedGift(gift);
-    setIsHeaderForStarGifts('id' in gift);
-    setIsHeaderHidden(false);
+    setIsGiftScreenHeaderForStarGifts('id' in gift);
   });
 
   function renderStarGifts() {
+    const filteredGiftIds = starGiftIdsByCategory?.[selectedCategory]?.filter((giftId) => {
+      const gift = starGiftsById?.[giftId];
+      if (!gift) return false;
+
+      const { isLimited, isSoldOut, upgradeStars } = gift;
+      if (areUnlimitedStarGiftsDisallowed && !areLimitedStarGiftsDisallowed) {
+        return isLimited;
+      }
+      if (areLimitedStarGiftsDisallowed && !areUnlimitedStarGiftsDisallowed) {
+        return !isLimited && !isSoldOut;
+      }
+      if (areUnlimitedStarGiftsDisallowed && areLimitedStarGiftsDisallowed) {
+        return Boolean(isLimited && !!upgradeStars);
+      }
+
+      return true;
+    });
+
     return (
       <div className={styles.starGiftsContainer}>
-        {starGiftsById && starGiftIdsByCategory?.[selectedCategory].map((giftId) => {
+        {starGiftsById && filteredGiftIds?.map((giftId) => {
           const gift = starGiftsById[giftId];
           return (
             <GiftItemStar
+              key={giftId}
               gift={gift}
               observeIntersection={observeIntersection}
               onClick={handleGiftClick}
@@ -244,6 +280,7 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
           return (
             <GiftItemPremium
               option={gift}
+              optionByStars={giftsByStars.get(gift)}
               baseMonthAmount={baseGift ? Math.floor(baseGift.amount / baseGift.months) : undefined}
               onClick={handleGiftClick}
             />
@@ -258,7 +295,7 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
   });
 
   const handleCloseButtonClick = useLastCallback(() => {
-    if (selectedGift) {
+    if (isGiftScreen) {
       setSelectedGift(undefined);
       return;
     }
@@ -275,25 +312,36 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
           />
           <img className={styles.logoBackground} src={StarsBackground} alt="" draggable={false} />
         </div>
-        {!isSelf && !chat && renderGiftPremiumHeader()}
-        {!isSelf && !chat && renderGiftPremiumDescription()}
-        {!isSelf && !chat && renderPremiumGifts()}
+        {!isSelf && !chat && !disallowedGifts?.shouldDisallowPremiumGifts && (
+          <>
+            {renderGiftPremiumHeader()}
+            {renderGiftPremiumDescription()}
+            {renderPremiumGifts()}
+          </>
+        )}
 
-        {renderStarGiftsHeader()}
-        {renderStarGiftsDescription()}
-        <StarGiftCategoryList onCategoryChanged={onCategoryChanged} />
-        <Transition
-          name="zoomFade"
-          activeKey={getCategoryKey(selectedCategory)}
-          className={styles.starGiftsTransition}
-        >
-          {renderStarGifts()}
-        </Transition>
+        {!areAllGiftsDisallowed && (
+          <>
+            {renderStarGiftsHeader()}
+            {renderStarGiftsDescription()}
+            <StarGiftCategoryList
+              areLimitedStarGiftsDisallowed={areLimitedStarGiftsDisallowed}
+              onCategoryChanged={onCategoryChanged}
+            />
+            <Transition
+              name="zoomFade"
+              activeKey={getCategoryKey(selectedCategory)}
+              className={styles.starGiftsTransition}
+            >
+              {renderStarGifts()}
+            </Transition>
+          </>
+        )}
       </div>
     );
   }
 
-  const isBackButton = Boolean(selectedGift);
+  const isBackButton = isGiftScreen;
 
   const buttonClassName = buildClassName(
     'animated-close-icon',
@@ -308,6 +356,7 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
       isSlim
       contentClassName={styles.content}
       className={buildClassName(styles.modalDialog, styles.root)}
+      isLowStackPriority
     >
       <Button
         className={styles.closeButton}
@@ -319,8 +368,8 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
       >
         <div className={buttonClassName} />
       </Button>
-      <BalanceBlock className={styles.balance} balance={starBalance} />
-      <div className={buildClassName(styles.header, isHeaderHidden && styles.hiddenHeader)}>
+      <BalanceBlock className={styles.balance} balance={starBalance} withAddButton />
+      <div className={buildClassName(styles.header, !shouldShowHeader && styles.hiddenHeader)}>
         <Transition
           name="slideVerticalFade"
           activeKey={Number(isHeaderForStarGifts)}
@@ -335,11 +384,15 @@ const PremiumGiftModal: FC<OwnProps & StateProps> = ({
         ref={transitionRef}
         className={styles.transition}
         name="pushSlide"
-        activeKey={selectedGift ? 1 : 0}
+        activeKey={isGiftScreen ? 1 : 0}
       >
-        {!selectedGift && renderMainScreen()}
-        {selectedGift && renderingModal?.forPeerId && (
-          <GiftSendingOptions gift={selectedGift} peerId={renderingModal.forPeerId} />
+        {!isGiftScreen && renderMainScreen()}
+        {isGiftScreen && renderingModal?.forPeerId && (
+          <GiftSendingOptions
+            gift={selectedGift}
+            giftByStars={giftsByStars.get(selectedGift)}
+            peerId={renderingModal.forPeerId}
+          />
         )}
       </Transition>
     </Modal>
@@ -355,6 +408,7 @@ export default memo(withGlobal<OwnProps>((global, { modal }): StateProps => {
 
   const peer = modal?.forPeerId ? selectPeer(global, modal.forPeerId) : undefined;
   const isSelf = Boolean(currentUserId && modal?.forPeerId === currentUserId);
+  const userFullInfo = peer ? selectUserFullInfo(global, peer?.id) : undefined;
 
   return {
     boostPerSentGift: global.appConfig?.boostsPerSentGift,
@@ -363,8 +417,9 @@ export default memo(withGlobal<OwnProps>((global, { modal }): StateProps => {
     starBalance: stars?.balance,
     peer,
     isSelf,
+    disallowedGifts: userFullInfo?.disallowedGifts,
   };
-})(PremiumGiftModal));
+})(GiftModal));
 
 function getCategoryKey(category: StarGiftCategory) {
   if (category === 'all') return -2;

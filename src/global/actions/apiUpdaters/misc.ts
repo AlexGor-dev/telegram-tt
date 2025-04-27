@@ -2,7 +2,8 @@ import type { ActionReturnType } from '../../types';
 import { PaymentStep } from '../../../types';
 
 import { SERVICE_NOTIFICATIONS_USER_ID } from '../../../config';
-import { applyLangPackDifference, requestLangPackDifference } from '../../../util/localization';
+import { applyLangPackDifference, getTranslationFn, requestLangPackDifference } from '../../../util/localization';
+import { getPeerTitle } from '../../helpers/peers';
 import { addActionHandler, setGlobal } from '../../index';
 import {
   addBlockedUser,
@@ -21,7 +22,12 @@ import {
   updateThreadInfos,
 } from '../../reducers';
 import { updateTabState } from '../../reducers/tabs';
-import { selectPeerStories, selectPeerStory, selectTabState } from '../../selectors';
+import {
+  selectPeer,
+  selectPeerStories,
+  selectPeerStory,
+  selectTabState,
+} from '../../selectors';
 
 addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
   switch (update['@type']) {
@@ -193,7 +199,7 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
         ...global,
         settings: {
           ...global.settings,
-          paidReactionPrivacy: update.isPrivate,
+          paidReactionPrivacy: update.private,
         },
       };
       setGlobal(global);
@@ -211,15 +217,16 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
     }
 
     case 'newMessage': {
-      const actionStarGift = update.message.content?.action?.starGift;
+      const action = update.message.content?.action;
       if (!update.message.isOutgoing && update.message.chatId !== SERVICE_NOTIFICATIONS_USER_ID) return undefined;
-      if (actionStarGift?.type !== 'starGiftUnique') return undefined;
+      if (action?.type !== 'starGiftUnique') return undefined;
+      const actionStarGift = action.gift;
 
       Object.values(global.byTabId).forEach(({ id: tabId }) => {
         const tabState = selectTabState(global, tabId);
         if (tabState.isWaitingForStarGiftUpgrade) {
           actions.openUniqueGiftBySlug({
-            slug: actionStarGift.gift.slug,
+            slug: actionStarGift.slug,
             tabId,
           });
 
@@ -235,7 +242,44 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
             isWaitingForStarGiftUpgrade: undefined,
           }, tabId);
         }
+
+        if (tabState.isWaitingForStarGiftTransfer) {
+          const chatId = update.message.chatId;
+          const receiver = chatId ? selectPeer(global, chatId) : undefined;
+          if (receiver) {
+            actions.focusMessage({
+              chatId: receiver.id,
+              messageId: update.message.id!,
+              tabId,
+            });
+
+            actions.showNotification({
+              message: {
+                key: 'GiftTransferSuccessMessage',
+                variables: {
+                  gift: {
+                    key: 'GiftUnique',
+                    variables: {
+                      title: actionStarGift.title,
+                      number: actionStarGift.number,
+                    },
+                  },
+                  peer: getPeerTitle(getTranslationFn(), receiver),
+                },
+              },
+              tabId,
+            });
+          }
+
+          actions.requestConfetti({ withStars: true, tabId });
+
+          global = updateTabState(global, {
+            isWaitingForStarGiftTransfer: undefined,
+          }, tabId);
+        }
       });
+
+      setGlobal(global);
     }
   }
 

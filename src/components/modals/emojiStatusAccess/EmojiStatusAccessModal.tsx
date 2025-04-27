@@ -9,7 +9,9 @@ import type { ApiStickerSet, ApiUser } from '../../../api/types';
 import type { TabState } from '../../../global/types';
 
 import { getUserFullName } from '../../../global/helpers';
-import { selectIsCurrentUserPremium, selectStickerSet, selectUser } from '../../../global/selectors';
+import {
+  selectIsCurrentUserFrozen, selectIsCurrentUserPremium, selectStickerSet, selectUser,
+} from '../../../global/selectors';
 import buildClassName from '../../../util/buildClassName';
 
 import useInterval from '../../../hooks/schedulers/useInterval';
@@ -31,15 +33,17 @@ export type StateProps = {
   currentUser?: ApiUser;
   stickerSet?: ApiStickerSet;
   isPremium?: boolean;
+  isAccountFrozen?: boolean;
 };
 
-const INTERVAL = 3000;
+const INTERVAL = 3200;
 
 const EmojiStatusAccessModal: FC<OwnProps & StateProps> = ({
   modal,
   currentUser,
   stickerSet,
   isPremium,
+  isAccountFrozen,
 }) => {
   const {
     closeEmojiStatusAccessModal,
@@ -60,16 +64,17 @@ const EmojiStatusAccessModal: FC<OwnProps & StateProps> = ({
   const [currentStatusIndex, setCurrentStatusIndex] = useState<number>(0);
 
   useEffect(() => {
-    if (isOpen && !stickerSet?.stickers) {
+    if (isOpen && !stickerSet?.stickers && !isAccountFrozen) {
       loadDefaultStatusIcons();
     }
-  }, [isOpen, stickerSet]);
+  }, [isOpen, stickerSet, isAccountFrozen]);
 
   const mockPeerWithStatus = useMemo(() => {
     if (!currentUser || !stickerSet?.stickers) return undefined;
     return {
       ...currentUser,
       emojiStatus: {
+        type: 'regular',
         documentId: stickerSet.stickers[currentStatusIndex].id,
       },
     } satisfies ApiUser;
@@ -194,11 +199,13 @@ export default memo(withGlobal<OwnProps>(
     const currentUser = selectUser(global, global.currentUserId!);
     const isPremium = selectIsCurrentUserPremium(global);
     const stickerSet = global.defaultStatusIconsId ? selectStickerSet(global, global.defaultStatusIconsId) : undefined;
+    const isAccountFrozen = selectIsCurrentUserFrozen(global);
 
     return {
       currentUser,
       stickerSet,
       isPremium,
+      isAccountFrozen,
     };
   },
 )(EmojiStatusAccessModal));

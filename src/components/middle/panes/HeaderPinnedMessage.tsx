@@ -12,8 +12,8 @@ import {
   getMessageMediaHash,
   getMessageSingleInlineButton,
   getMessageVideo,
-  getPeerTitle,
 } from '../../../global/helpers';
+import { getPeerTitle } from '../../../global/helpers/peers';
 import {
   selectAllowedMessageActionsSlow,
   selectChat,
@@ -22,9 +22,9 @@ import {
   selectForwardedSender,
   selectPinnedIds,
 } from '../../../global/selectors';
+import { IS_TOUCH_ENV } from '../../../util/browser/windowEnvironment';
 import buildClassName from '../../../util/buildClassName';
 import cycleRestrict from '../../../util/cycleRestrict';
-import { IS_TOUCH_ENV } from '../../../util/windowEnvironment';
 import { getPictogramDimensions, REM } from '../../common/helpers/mediaDimensions';
 import renderText from '../../common/helpers/renderText';
 import renderKeyboardButtonText from '../composer/helpers/renderKeyboardButtonText';
@@ -55,6 +55,7 @@ import PinnedMessageNavigation from '../PinnedMessageNavigation';
 
 import styles from './HeaderPinnedMessage.module.scss';
 
+const MAX_LENGTH = 256;
 const SHOW_LOADER_DELAY = 450;
 const EMOJI_SIZE = 1.125 * REM;
 
@@ -312,6 +313,7 @@ const HeaderPinnedMessage = ({
             <p dir="auto" className={styles.summary}>
               <MessageSummary
                 message={renderingPinnedMessage}
+                truncateLength={MAX_LENGTH}
                 noEmoji={Boolean(mediaThumbnail)}
                 emojiSize={EMOJI_SIZE}
               />

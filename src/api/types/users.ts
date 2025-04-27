@@ -1,10 +1,10 @@
 import type { API_CHAT_TYPES } from '../../config';
 import type { ApiBotInfo } from './bots';
 import type { ApiBusinessIntro, ApiBusinessLocation, ApiBusinessWorkHours } from './business';
-import type { ApiPeerColor } from './chats';
+import type { ApiPeerColor, ApiPeerSettings } from './chats';
 import type { ApiDocument, ApiPhoto } from './messages';
 import type { ApiBotVerification } from './misc';
-import type { ApiSavedStarGift } from './payments';
+import type { ApiSavedStarGift } from './stars';
 
 export interface ApiUser {
   id: string;
@@ -28,7 +28,7 @@ export interface ApiUser {
   canBeInvitedToGroup?: boolean;
   fakeType?: ApiFakeType;
   isAttachBot?: boolean;
-  emojiStatus?: ApiEmojiStatus;
+  emojiStatus?: ApiEmojiStatusType;
   areStoriesHidden?: boolean;
   hasStories?: boolean;
   hasUnreadStories?: boolean;
@@ -38,6 +38,7 @@ export interface ApiUser {
   hasMainMiniApp?: boolean;
   botActiveUsers?: number;
   botVerificationIconId?: string;
+  paidMessagesStars?: number;
 }
 
 export interface ApiUserFullInfo {
@@ -50,11 +51,12 @@ export interface ApiUserFullInfo {
   fallbackPhoto?: ApiPhoto;
   personalPhoto?: ApiPhoto;
   noVoiceMessages?: boolean;
-  premiumGifts?: ApiPremiumGiftOption[];
   isTranslationDisabled?: true;
   areAdsEnabled?: boolean;
   hasPinnedStories?: boolean;
   isContactRequirePremium?: boolean;
+  shouldDisplayGiftsButton?: boolean;
+  disallowedGifts?: ApiDisallowedGifts;
   birthday?: ApiBirthday;
   personalChannelId?: string;
   personalChannelMessageId?: number;
@@ -66,6 +68,8 @@ export interface ApiUserFullInfo {
   isBotAccessEmojiGranted?: boolean;
   hasScheduledMessages?: boolean;
   botVerification?: ApiBotVerification;
+  paidMessagesStars?: number;
+  settings?: ApiPeerSettings;
 }
 
 export type ApiFakeType = 'fake' | 'scam';
@@ -103,9 +107,11 @@ export interface ApiUsername {
 export type ApiChatType = typeof API_CHAT_TYPES[number];
 export type ApiAttachMenuPeerType = 'self' | ApiChatType;
 
+export type ApiInlineQueryPeerType = 'self' | 'supergroups' | ApiChatType;
+
 type ApiAttachBotForMenu = {
   isForAttachMenu: true;
-  attachMenuPeerTypes: ApiAttachMenuPeerType[];
+  attachMenuPeerTypes?: ApiAttachMenuPeerType[];
 };
 
 type ApiAttachBotBase = {
@@ -125,15 +131,25 @@ export interface ApiAttachBotIcon {
   document: ApiDocument;
 }
 
-export interface ApiPremiumGiftOption {
-  months: number;
-  currency: string;
-  amount: number;
-  botUrl: string;
-}
+export type ApiEmojiStatusType = ApiEmojiStatus | ApiEmojiStatusCollectible;
 
 export interface ApiEmojiStatus {
+  type: 'regular';
   documentId: string;
+  until?: number;
+}
+
+export interface ApiEmojiStatusCollectible {
+  type: 'collectible';
+  collectibleId: string;
+  documentId: string;
+  title: string;
+  slug: string;
+  patternDocumentId: string;
+  centerColor: string;
+  edgeColor: string;
+  patternColor: string;
+  textColor: string;
   until?: number;
 }
 
@@ -141,4 +157,11 @@ export interface ApiBirthday {
   day: number;
   month: number;
   year?: number;
+}
+
+export interface ApiDisallowedGifts {
+  shouldDisallowUnlimitedStarGifts?: boolean;
+  shouldDisallowLimitedStarGifts?: boolean;
+  shouldDisallowUniqueStarGifts?: boolean;
+  shouldDisallowPremiumGifts?: boolean;
 }

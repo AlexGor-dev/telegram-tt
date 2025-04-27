@@ -7,7 +7,7 @@ import { withGlobal } from '../../../../global';
 import type { ApiSticker } from '../../../../api/types';
 
 import { selectAnimatedEmoji } from '../../../../global/selectors';
-import { IS_TOUCH_ENV } from '../../../../util/windowEnvironment';
+import { IS_TOUCH_ENV } from '../../../../util/browser/windowEnvironment';
 import renderText from '../../../common/helpers/renderText';
 
 import useAppLayout from '../../../../hooks/useAppLayout';
@@ -105,9 +105,14 @@ const SettingsTwoFaSkippableForm: FC<OwnProps & StateProps> = ({
     <div className="settings-content two-fa custom-scroll">
       <div className="settings-content-header no-border">
         <AnimatedIconFromSticker sticker={animatedEmoji} size={ICON_SIZE} className="settings-content-icon" />
+        {type === 'email' && (
+          <p className="settings-item-description mb-3" dir="auto">
+            {lang('RecoveryEmailSubtitle')}
+          </p>
+        )}
       </div>
 
-      <div className="settings-item pt-0">
+      <div className="settings-item settings-group">
         <form action="" onSubmit={handleSubmit}>
           <InputText
             ref={inputRef}

@@ -7,9 +7,9 @@ import type { ObserveFn } from '../../hooks/useIntersectionObserver';
 
 import { getStickerMediaHash } from '../../global/helpers';
 import { selectIsAlwaysHighPriorityEmoji } from '../../global/selectors';
+import { IS_ANDROID, IS_IOS, IS_WEBM_SUPPORTED } from '../../util/browser/windowEnvironment';
 import buildClassName from '../../util/buildClassName';
 import * as mediaLoader from '../../util/mediaLoader';
-import { IS_ANDROID, IS_IOS, IS_WEBM_SUPPORTED } from '../../util/windowEnvironment';
 
 import useColorFilter from '../../hooks/stickers/useColorFilter';
 import useCoordsInSharedCanvas from '../../hooks/useCoordsInSharedCanvas';
@@ -124,7 +124,7 @@ const StickerView: FC<OwnProps> = ({
   const [isPlayerReady, markPlayerReady] = useFlag();
   const isFullMediaReady = shouldRenderFullMedia && (isStatic || isPlayerReady);
 
-  const thumbDataUri = useThumbnail(sticker);
+  const thumbDataUri = useThumbnail(sticker.thumbnail);
   const thumbData = cachedPreview || previewMediaData || thumbDataUri;
   const isThumbOpaque = sharedCanvasRef && !withTranslucentThumb;
 

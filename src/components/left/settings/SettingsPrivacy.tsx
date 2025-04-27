@@ -6,7 +6,11 @@ import type { ApiPrivacySettings } from '../../../api/types';
 import type { GlobalState } from '../../../global/types';
 import { SettingsScreens } from '../../../types';
 
-import { selectCanSetPasscode, selectIsCurrentUserPremium } from '../../../global/selectors';
+import {
+  selectCanSetPasscode, selectIsCurrentUserFrozen,
+  selectIsCurrentUserPremium,
+} from '../../../global/selectors';
+import { selectSharedSettings } from '../../../global/selectors/sharedState';
 
 import useHistoryBack from '../../../hooks/useHistoryBack';
 import useLang from '../../../hooks/useLang';
@@ -34,7 +38,9 @@ type StateProps = {
   canDisplayAutoarchiveSetting: boolean;
   shouldArchiveAndMuteNewNonContact?: boolean;
   shouldNewNonContactPeersRequirePremium?: boolean;
+  shouldChargeForMessages: boolean;
   canDisplayChatInTitle?: boolean;
+  isCurrentUserFrozen?: boolean;
   privacy: GlobalState['settings']['privacy'];
 };
 
@@ -50,11 +56,13 @@ const SettingsPrivacy: FC<OwnProps & StateProps> = ({
   canDisplayAutoarchiveSetting,
   shouldArchiveAndMuteNewNonContact,
   shouldNewNonContactPeersRequirePremium,
+  shouldChargeForMessages,
   canDisplayChatInTitle,
   canSetPasscode,
   privacy,
   onScreenSelect,
   onReset,
+  isCurrentUserFrozen,
 }) => {
   const {
     loadPrivacySettings,
@@ -64,21 +72,23 @@ const SettingsPrivacy: FC<OwnProps & StateProps> = ({
     loadGlobalPrivacySettings,
     updateGlobalPrivacySettings,
     loadWebAuthorizations,
-    setSettingOption,
+    setSharedSettingOption,
   } = getActions();
 
   useEffect(() => {
-    loadBlockedUsers();
-    loadPrivacySettings();
-    loadContentSettings();
-    loadWebAuthorizations();
-  }, []);
+    if (!isCurrentUserFrozen) {
+      loadBlockedUsers();
+      loadPrivacySettings();
+      loadContentSettings();
+      loadWebAuthorizations();
+    }
+  }, [isCurrentUserFrozen]);
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive && !isCurrentUserFrozen) {
       loadGlobalPrivacySettings();
     }
-  }, [isActive, loadGlobalPrivacySettings]);
+  }, [isActive, isCurrentUserFrozen, loadGlobalPrivacySettings]);
 
   const oldLang = useOldLang();
   const lang = useLang();
@@ -95,7 +105,7 @@ const SettingsPrivacy: FC<OwnProps & StateProps> = ({
   }, [updateGlobalPrivacySettings]);
 
   const handleChatInTitleChange = useCallback((isChecked: boolean) => {
-    setSettingOption({
+    setSharedSettingOption({
       canDisplayChatInTitle: isChecked,
     });
   }, []);
@@ -145,7 +155,7 @@ const SettingsPrivacy: FC<OwnProps & StateProps> = ({
 
   return (
     <div className="settings-content custom-scroll">
-      <div className="settings-item pt-3">
+      <div className="settings-item">
         <ListItem
           icon="delete-user"
           narrow
@@ -332,9 +342,10 @@ const SettingsPrivacy: FC<OwnProps & StateProps> = ({
           <div className="multiline-item">
             <span className="title">{oldLang('PrivacyMessagesTitle')}</span>
             <span className="subtitle" dir="auto">
-              {shouldNewNonContactPeersRequirePremium
-                ? oldLang('PrivacyMessagesContactsAndPremium')
-                : oldLang('P2PEverybody')}
+              {shouldChargeForMessages ? lang('PrivacyPaidMessagesValue')
+                : shouldNewNonContactPeersRequirePremium
+                  ? oldLang('PrivacyMessagesContactsAndPremium')
+                  : oldLang('P2PEverybody')}
             </span>
           </div>
         </ListItem>
@@ -402,7 +413,7 @@ export default memo(withGlobal<OwnProps>(
       settings: {
         byKey: {
           hasPassword, isSensitiveEnabled, canChangeSensitive, shouldArchiveAndMuteNewNonContact,
-          canDisplayChatInTitle, shouldNewNonContactPeersRequirePremium,
+          shouldNewNonContactPeersRequirePremium, nonContactPeersPaidStars,
         },
         privacy,
       },
@@ -412,6 +423,10 @@ export default memo(withGlobal<OwnProps>(
       },
       appConfig,
     } = global;
+
+    const { canDisplayChatInTitle } = selectSharedSettings(global);
+    const shouldChargeForMessages = Boolean(nonContactPeersPaidStars);
+    const isCurrentUserFrozen = selectIsCurrentUserFrozen(global);
 
     return {
       isCurrentUserPremium: selectIsCurrentUserPremium(global),
@@ -424,9 +439,11 @@ export default memo(withGlobal<OwnProps>(
       shouldArchiveAndMuteNewNonContact,
       canChangeSensitive,
       shouldNewNonContactPeersRequirePremium,
+      shouldChargeForMessages,
       privacy,
       canDisplayChatInTitle,
       canSetPasscode: selectCanSetPasscode(global),
+      isCurrentUserFrozen,
     };
   },
 )(SettingsPrivacy));

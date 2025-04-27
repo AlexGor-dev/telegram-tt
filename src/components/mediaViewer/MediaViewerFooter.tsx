@@ -3,9 +3,9 @@ import React, { useEffect, useState } from '../../lib/teact/teact';
 
 import type { TextPart } from '../../types';
 
+import { IS_TOUCH_ENV } from '../../util/browser/windowEnvironment';
 import buildClassName from '../../util/buildClassName';
 import { throttle } from '../../util/schedulers';
-import { IS_TOUCH_ENV } from '../../util/windowEnvironment';
 import { REM } from '../common/helpers/mediaDimensions';
 
 import useAppLayout from '../../hooks/useAppLayout';
@@ -22,7 +22,7 @@ const RESIZE_THROTTLE_MS = 500;
 type OwnProps = {
   text: TextPart | TextPart[];
   buttonText?: string;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
   handleSponsoredClick: (isFromMedia?: boolean) => void;
   isForVideo: boolean;
   isForceMobileVersion?: boolean;

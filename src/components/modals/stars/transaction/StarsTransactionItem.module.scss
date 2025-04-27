@@ -32,18 +32,18 @@
 
 .title, .description, .date {
   margin-bottom: 0;
+  line-height: 1.25;
 }
 
 .title {
-  font-size: 1rem;
+  font-size: 0.9375rem;
 }
 
-.description {
-  font-size: 0.875rem;
+.description, .date {
+  font-size: 0.8125rem;
 }
 
 .date {
-  font-size: 0.875rem;
   color: var(--color-text-secondary);
 }
 
@@ -57,7 +57,7 @@
 
 .preview {
   position: relative;
-  align-self: flex-start;
+  align-self: center;
 }
 
 .subscriptionStar {
@@ -78,7 +78,7 @@
   border-radius: 0.25rem;
 }
 
-.uniqueGift {
+.giftSticker {
   margin-inline: 0.25rem;
   margin-top: 0.25rem;
 }

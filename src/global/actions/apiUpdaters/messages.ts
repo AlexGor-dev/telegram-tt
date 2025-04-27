@@ -25,7 +25,11 @@ import {
   isMessageLocal, isUserId,
 } from '../../helpers';
 import { getMessageReplyInfo, getStoryReplyInfo } from '../../helpers/replies';
-import { addActionHandler, getGlobal, setGlobal } from '../../index';
+import {
+  addActionHandler,
+  getGlobal,
+  setGlobal,
+} from '../../index';
 import {
   addMessages,
   addViewportId,
@@ -204,7 +208,7 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
         if (!message) return;
 
         // Workaround for a weird behavior when interaction is received after watching reaction
-        if (getMessageText(message) !== update.emoji) return;
+        if (getMessageText(message)?.text !== update.emoji) return;
 
         const tabState = selectTabState(global, tabId);
         global = updateTabState(global, {
@@ -252,10 +256,23 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
 
     case 'updateMessage': {
       const {
-        chatId, id, message, poll,
+        chatId, id, message, poll, shouldCreateMessageIfNeeded, shouldForceReply,
       } = update;
 
       const currentMessage = selectChatMessage(global, chatId, id);
+
+      if (shouldCreateMessageIfNeeded && !currentMessage) {
+        actions.apiUpdate({
+          '@type': 'newMessage',
+          id: update.id,
+          chatId: update.chatId,
+          message: update.message,
+          poll: update.poll,
+          shouldForceReply,
+        });
+        return;
+      }
+
       const chat = selectChat(global, chatId);
 
       global = updateWithLocalMedia(global, chatId, id, message);
@@ -540,8 +557,15 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
 
       const chat = selectChat(global, chatId);
       const currentThreadInfo = selectThreadInfo(global, chatId, threadId);
-      if (chat?.isForum && threadInfo.lastReadInboxMessageId !== currentThreadInfo?.lastReadInboxMessageId) {
-        actions.loadTopicById({ chatId, topicId: Number(threadId) });
+      const topic = selectTopic(global, chatId, threadId);
+      if (chat?.isForum) {
+        if (!topic || topic.lastMessageId !== currentThreadInfo?.lastReadInboxMessageId) {
+          actions.loadTopicById({ chatId, topicId: Number(threadId) });
+        } else {
+          global = updateTopic(global, chatId, Number(threadId), {
+            unreadCount: 0,
+          });
+        }
       }
 
       // Update reply thread last read message id if already read in main thread
@@ -655,6 +679,15 @@ addActionHandler('apiUpdate', (global, actions, update): ActionReturnType => {
 
       global = getGlobal();
       deleteThread(global, currentUserId, chatId, actions);
+
+      break;
+    }
+
+    case 'deleteParticipantHistory': {
+      const { chatId, peerId } = update;
+
+      global = getGlobal();
+      deleteParticipantHistory(global, chatId, peerId, actions);
 
       break;
     }
@@ -844,7 +877,8 @@ function updateReactions<T extends GlobalState>(
   const localPaidReaction = currentReactions?.results.find((r) => r.localAmount);
   // Save local count on update, but reset if we sent reaction
   if (localPaidReaction?.localAmount) {
-    reactions.results = addPaidReaction(reactions.results, localPaidReaction.localAmount);
+    const { localIsPrivate: isPrivate, localAmount, localPeerId } = localPaidReaction;
+    reactions.results = addPaidReaction(reactions.results, localAmount, isPrivate, localPeerId);
   }
 
   global = updateChatMessage(global, chatId, id, { reactions });
@@ -1081,6 +1115,25 @@ function findLastMessage<T extends GlobalState>(global: T, chatId: string, threa
   return undefined;
 }
 
+export function deleteParticipantHistory<T extends GlobalState>(
+  global: T,
+  chatId: string,
+  peerId: string,
+  actions: RequiredGlobalActions,
+) {
+  const byId = selectChatMessages(global, chatId);
+
+  const messageIds = Object.values(byId).filter((message) => {
+    return message.senderId === peerId;
+  }).map((message) => message.id);
+
+  if (!messageIds.length) {
+    return;
+  }
+
+  deleteMessages(global, chatId, messageIds, actions);
+}
+
 export function deleteThread<T extends GlobalState>(
   global: T,
   chatId: string,
@@ -1129,7 +1182,7 @@ export function deleteMessages<T extends GlobalState>(
         return;
       }
 
-      if (message.content.action?.photo) {
+      if (message.content.action?.type === 'chatEditPhoto' && message.content.action.photo) {
         global = deletePeerPhoto(global, chatId, message.content.action.photo.id, true);
       }
 
@@ -1217,7 +1270,7 @@ export function deleteMessages<T extends GlobalState>(
         }
       }
 
-      if (message?.content.action?.photo) {
+      if (message?.content.action?.type === 'chatEditPhoto' && message.content.action.photo) {
         global = deletePeerPhoto(global, commonBoxChatId, message.content.action.photo.id, true);
       }
 

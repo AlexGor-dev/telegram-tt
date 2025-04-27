@@ -19,9 +19,10 @@ import {
   IS_MOCKED_CLIENT, IS_TEST, MESSAGE_LIST_SLICE, MESSAGE_LIST_VIEWPORT_LIMIT, TMP_CHAT_ID,
 } from '../../config';
 import { areDeepEqual } from '../../util/areDeepEqual';
+import { addTimestampEntities } from '../../util/dates/timestamp';
 import { getCurrentTabId } from '../../util/establishMultitabRole';
 import {
-  areSortedArraysEqual, excludeSortedArray, omit, pick, pickTruthy, unique,
+  areSortedArraysEqual, excludeSortedArray, omit, omitUndefined, pick, pickTruthy, unique,
 } from '../../util/iteratees';
 import { isLocalMessageId, type MessageKey } from '../../util/keys/messageKey';
 import {
@@ -253,31 +254,38 @@ export function updateChatMessage<T extends GlobalState>(
   if (message && messageUpdate.isMediaUnread === false && hasMessageTtl(message)) {
     if (message.content.voice) {
       messageUpdate.content = {
-        ...messageUpdate.content,
-        voice: undefined,
-        isExpiredVoice: true,
+        action: {
+          mediaType: 'action',
+          type: 'expired',
+          isVoice: true,
+        },
       };
     } else if (message.content.video?.isRound) {
       messageUpdate.content = {
-        ...messageUpdate.content,
-        video: undefined,
-        isExpiredRoundVideo: true,
+        action: {
+          mediaType: 'action',
+          type: 'expired',
+          isRoundVideo: true,
+        },
       };
     }
   }
 
   let emojiOnlyCount = message?.emojiOnlyCount;
+  let text = message?.content?.text;
   if (messageUpdate.content) {
     emojiOnlyCount = getEmojiOnlyCountForMessage(
       messageUpdate.content, message?.groupedId || messageUpdate.groupedId,
     );
+    text = messageUpdate.content.text ? addTimestampEntities(messageUpdate.content.text) : text;
   }
 
-  const updatedMessage = {
+  const updatedMessage = omitUndefined({
     ...message,
     ...messageUpdate,
     emojiOnlyCount,
-  };
+    text,
+  });
 
   if (!updatedMessage.id) {
     return global;
@@ -295,16 +303,19 @@ export function updateScheduledMessage<T extends GlobalState>(
   const message = selectScheduledMessage(global, chatId, messageId)!;
 
   let emojiOnlyCount = message?.emojiOnlyCount;
+  let text = message?.content?.text;
   if (messageUpdate.content) {
     emojiOnlyCount = getEmojiOnlyCountForMessage(
       messageUpdate.content, message?.groupedId || messageUpdate.groupedId,
     );
+    text = messageUpdate.content.text ? addTimestampEntities(messageUpdate.content.text) : text;
   }
 
   const updatedMessage = {
     ...message,
     ...messageUpdate,
     emojiOnlyCount,
+    text,
   };
 
   if (!updatedMessage.id) {
@@ -715,6 +726,7 @@ export function updateFocusedMessage<T extends GlobalState>(
     noHighlight = false,
     isResizingContainer = false,
     quote,
+    quoteOffset,
     scrollTargetPosition,
   }: {
     global: T;
@@ -724,6 +736,7 @@ export function updateFocusedMessage<T extends GlobalState>(
     noHighlight?: boolean;
     isResizingContainer?: boolean;
     quote?: string;
+    quoteOffset?: number;
     scrollTargetPosition?: ScrollTargetPosition;
   },
   ...[tabId = getCurrentTabId()]: TabArgs<T>
@@ -737,6 +750,7 @@ export function updateFocusedMessage<T extends GlobalState>(
       noHighlight,
       isResizingContainer,
       quote,
+      quoteOffset,
       scrollTargetPosition,
     },
   }, tabId);

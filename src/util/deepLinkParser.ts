@@ -2,9 +2,10 @@ import type { ThreadId } from '../types';
 
 import { RE_TG_LINK, RE_TME_LINK } from '../config';
 import { toChannelId } from '../global/helpers';
-import { ensureProtocol } from './ensureProtocol';
+import { IS_BAD_URL_PARSER } from './browser/globalEnvironment';
+import { ensureProtocol } from './browser/url';
+import { parseTimestampDuration } from './dates/timestamp';
 import { isUsernameValid } from './username';
-import { IS_BAD_URL_PARSER } from './windowEnvironment';
 
 export type DeepLinkMethod = 'resolve' | 'login' | 'passport' | 'settings' | 'join' | 'addstickers' | 'addemoji' |
 'setlanguage' | 'addtheme' | 'confirmphone' | 'socks' | 'proxy' | 'privatepost' | 'bg' | 'share' | 'msg' | 'msg_url' |
@@ -18,7 +19,7 @@ interface PublicMessageLink {
   isSingle: boolean;
   threadId?: ThreadId;
   commentId?: number;
-  mediaTimestamp?: string;
+  timestamp?: number;
 }
 
 export interface PrivateMessageLink {
@@ -28,7 +29,7 @@ export interface PrivateMessageLink {
   isSingle: boolean;
   threadId?: ThreadId;
   commentId?: number;
-  mediaTimestamp?: string;
+  timestamp?: number;
 }
 
 interface ShareLink {
@@ -146,6 +147,14 @@ export function tryParseDeepLink(link: string): DeepLink | undefined {
   }
 }
 
+export function getUsernameFromDeepLink(url: string) {
+  const deepLink = tryParseDeepLink(url);
+  if (deepLink?.type === 'publicUsernameOrBotLink') {
+    return deepLink.username;
+  }
+  return undefined;
+}
+
 function parseDeepLink(url: string) {
   const correctUrl = ensureProtocol(url);
   if (!correctUrl) {
@@ -181,7 +190,7 @@ function parseTgLink(url: URL) {
         single,
         threadId: thread,
         commentId: comment,
-        mediaTimestamp: t,
+        timestamp: t,
       });
     }
     case 'privateMessageLink': {
@@ -194,7 +203,7 @@ function parseTgLink(url: URL) {
         single,
         threadId: thread,
         commentId: comment,
-        mediaTimestamp: t,
+        timestamp: t,
       });
     }
     case 'shareLink':
@@ -276,7 +285,7 @@ function parseHttpLink(url: URL) {
         single,
         threadId: thread,
         commentId: comment,
-        mediaTimestamp: t,
+        timestamp: t,
       });
     }
     case 'privateMessageLink': {
@@ -302,7 +311,7 @@ function parseHttpLink(url: URL) {
         single,
         threadId: thread,
         commentId: comment,
-        mediaTimestamp: t,
+        timestamp: t,
       });
     }
     case 'shareLink': {
@@ -463,7 +472,7 @@ function buildShareLink(params: BuilderParams<ShareLink>): BuilderReturnType<Sha
 
 function buildPublicMessageLink(params: PublicMessageLinkBuilderParams): BuilderReturnType<PublicMessageLink> {
   const {
-    messageId, threadId, commentId, username, single, mediaTimestamp,
+    messageId, threadId, commentId, username, single, timestamp,
   } = params;
   if (!username || !isUsernameValid(username)) {
     return undefined;
@@ -484,13 +493,13 @@ function buildPublicMessageLink(params: PublicMessageLinkBuilderParams): Builder
     isSingle: single === '',
     threadId: threadId ? Number(threadId) : undefined,
     commentId: commentId ? Number(commentId) : undefined,
-    mediaTimestamp,
+    timestamp: timestamp ? parseTimestampDuration(timestamp) : undefined,
   };
 }
 
 function buildPrivateMessageLink(params: PrivateMessageLinkBuilderParams): BuilderReturnType<PrivateMessageLink> {
   const {
-    messageId, threadId, commentId, channelId, single, mediaTimestamp,
+    messageId, threadId, commentId, channelId, single, timestamp,
   } = params;
   if (!channelId || !isNumber(channelId)) {
     return undefined;
@@ -506,12 +515,12 @@ function buildPrivateMessageLink(params: PrivateMessageLinkBuilderParams): Build
   }
   return {
     type: 'privateMessageLink',
-    channelId,
+    channelId: toChannelId(channelId),
     messageId: Number(messageId),
     isSingle: single === '',
     threadId: threadId ? Number(threadId) : undefined,
     commentId: commentId ? Number(commentId) : undefined,
-    mediaTimestamp,
+    timestamp: timestamp ? parseTimestampDuration(timestamp) : undefined,
   };
 }
 

@@ -8,6 +8,8 @@ import type {
   ApiChatBannedRights,
   ApiChatFolder,
   ApiChatReactions,
+  ApiDisallowedGiftsSettings,
+  ApiEmojiStatusType,
   ApiFormattedText,
   ApiGroupCall,
   ApiInputPrivacyRules,
@@ -92,6 +94,45 @@ export function buildInputPeer(chatOrUserId: string, accessHash?: string): GramJ
   }
 }
 
+export function buildInputUser(userId: string, accessHash?: string): GramJs.TypeInputUser {
+  if (!accessHash) {
+    return new GramJs.InputUserEmpty();
+  }
+
+  return new GramJs.InputUser({
+    userId: buildMtpPeerId(userId, 'user'),
+    accessHash: BigInt(accessHash),
+  });
+}
+
+export function buildInputChannel(channelId: string, accessHash?: string): GramJs.TypeInputChannel {
+  if (!accessHash) {
+    return new GramJs.InputChannelEmpty();
+  }
+
+  return new GramJs.InputChannel({
+    channelId: buildMtpPeerId(channelId, 'channel'),
+    accessHash: BigInt(accessHash),
+  });
+}
+
+export function buildInputChat(chatId: string) {
+  return BigInt(chatId);
+}
+
+export function buildInputPaidReactionPrivacy(isPrivate?: boolean, peerId?: string): GramJs.TypePaidReactionPrivacy {
+  if (isPrivate) return new GramJs.PaidReactionPrivacyAnonymous();
+  if (peerId) {
+    const peer = buildInputPeerFromLocalDb(peerId);
+    if (peer) {
+      return new GramJs.PaidReactionPrivacyPeer({
+        peer,
+      });
+    }
+  }
+  return new GramJs.PaidReactionPrivacyDefault();
+}
+
 export function buildInputPeerFromLocalDb(chatOrUserId: string): GramJs.TypeInputPeer | undefined {
   const type = getEntityTypeById(chatOrUserId);
   let accessHash: BigInt.BigInteger | undefined;
@@ -111,22 +152,14 @@ export function buildInputPeerFromLocalDb(chatOrUserId: string): GramJs.TypeInpu
   return buildInputPeer(chatOrUserId, String(accessHash));
 }
 
-export function buildInputEntity(chatOrUserId: string, accessHash?: string) {
-  const type = getEntityTypeById(chatOrUserId);
+export function buildInputChannelFromLocalDb(channelId: string): GramJs.TypeInputChannel | undefined {
+  const channel = localDb.chats[channelId];
 
-  if (type === 'user') {
-    return new GramJs.InputUser({
-      userId: buildMtpPeerId(chatOrUserId, 'user'),
-      accessHash: BigInt(accessHash!),
-    });
-  } else if (type === 'channel') {
-    return new GramJs.InputChannel({
-      channelId: buildMtpPeerId(chatOrUserId, 'channel'),
-      accessHash: BigInt(accessHash!),
-    });
-  } else {
-    return buildMtpPeerId(chatOrUserId, 'chat');
+  if (!channel || !(channel instanceof GramJs.Channel)) {
+    return undefined;
   }
+
+  return buildInputChannel(channelId, String(channel.accessHash));
 }
 
 export function buildInputStickerSet(id: string, accessHash: string) {
@@ -476,6 +509,9 @@ export function buildInputPrivacyKey(privacyKey: ApiPrivacyKey) {
 
     case 'gifts':
       return new GramJs.InputPrivacyKeyStarGiftsAutoSave();
+
+    case 'noPaidMessages':
+      return new GramJs.InputPrivacyKeyNoPaidMessages();
   }
 
   return undefined;
@@ -568,7 +604,7 @@ GramJs.TypeInputStorePaymentPurpose {
 
   if (purpose.type === 'starsgift') {
     return new GramJs.InputStorePaymentStarsGift({
-      userId: buildInputEntity(purpose.user.id, purpose.user.accessHash) as GramJs.InputUser,
+      userId: buildInputUser(purpose.user.id, purpose.user.accessHash),
       stars: BigInt(purpose.stars),
       currency: purpose.currency,
       amount: BigInt(purpose.amount),
@@ -577,7 +613,7 @@ GramJs.TypeInputStorePaymentPurpose {
 
   if (purpose.type === 'giftcode') {
     return new GramJs.InputStorePaymentPremiumGiftCode({
-      users: purpose.users.map((user) => buildInputEntity(user.id, user.accessHash) as GramJs.InputUser),
+      users: purpose.users.map((user) => buildInputUser(user.id, user.accessHash)),
       boostPeer: purpose.boostChannel
         ? buildInputPeer(purpose.boostChannel.id, purpose.boostChannel.accessHash)
         : undefined,
@@ -629,6 +665,15 @@ function buildPremiumGiftCodeOption(optionData: ApiPremiumGiftCodeOption) {
   });
 }
 
+export function buildDisallowedGiftsSettings(disallowedGifts: ApiDisallowedGiftsSettings) {
+  return new GramJs.DisallowedGiftsSettings({
+    disallowUnlimitedStargifts: disallowedGifts.shouldDisallowLimitedStarGifts,
+    disallowLimitedStargifts: disallowedGifts.shouldDisallowUnlimitedStarGifts,
+    disallowUniqueStargifts: disallowedGifts.shouldDisallowUniqueStarGifts,
+    disallowPremiumGifts: disallowedGifts.shouldDisallowPremiumGifts,
+  });
+}
+
 export function buildInputInvoice(invoice: ApiRequestInputInvoice) {
   switch (invoice.type) {
     case 'message': {
@@ -664,6 +709,17 @@ export function buildInputInvoice(invoice: ApiRequestInputInvoice) {
       });
     }
 
+    case 'premiumGiftStars': {
+      const {
+        user, message, months,
+      } = invoice;
+      return new GramJs.InputInvoicePremiumGiftStars({
+        months,
+        userId: buildInputUser(user.id, user.accessHash),
+        message: message && buildInputTextWithEntities(message),
+      });
+    }
+
     case 'starsgiveaway': {
       const purpose = buildInputStorePaymentPurpose(invoice.purpose);
       return new GramJs.InputInvoiceStars({
@@ -681,6 +737,13 @@ export function buildInputInvoice(invoice: ApiRequestInputInvoice) {
       return new GramJs.InputInvoiceStarGiftUpgrade({
         stargift: buildInputSavedStarGift(invoice.inputSavedGift),
         keepOriginalDetails: invoice.shouldKeepOriginalDetails,
+      });
+    }
+
+    case 'stargiftTransfer': {
+      return new GramJs.InputInvoiceStarGiftTransfer({
+        stargift: buildInputSavedStarGift(invoice.inputSavedGift),
+        toId: buildInputPeer(invoice.recipient.id, invoice.recipient.accessHash),
       });
     }
 
@@ -730,14 +793,21 @@ export function buildInputChatReactions(chatReactions?: ApiChatReactions) {
   return new GramJs.ChatReactionsNone();
 }
 
-export function buildInputEmojiStatus(emojiStatusId: string, expires?: number) {
-  if (emojiStatusId === DEFAULT_STATUS_ICON_ID) {
+export function buildInputEmojiStatus(emojiStatus: ApiEmojiStatusType) {
+  if (emojiStatus.type === 'collectible') {
+    return new GramJs.InputEmojiStatusCollectible({
+      collectibleId: BigInt(emojiStatus.collectibleId),
+      until: emojiStatus.until,
+    });
+  }
+
+  if (emojiStatus.documentId === DEFAULT_STATUS_ICON_ID) {
     return new GramJs.EmojiStatusEmpty();
   }
 
   return new GramJs.EmojiStatus({
-    documentId: BigInt(emojiStatusId),
-    until: expires,
+    documentId: BigInt(emojiStatus.documentId),
+    until: emojiStatus.until,
   });
 }
 
@@ -765,7 +835,7 @@ export function buildInputReplyTo(replyInfo: ApiInputReplyInfo) {
 
   if (replyInfo.type === 'message') {
     const {
-      replyToMsgId, replyToTopId, replyToPeerId, quoteText,
+      replyToMsgId, replyToTopId, replyToPeerId, quoteText, quoteOffset,
     } = replyInfo;
     return new GramJs.InputReplyToMessage({
       replyToMsgId,
@@ -773,6 +843,7 @@ export function buildInputReplyTo(replyInfo: ApiInputReplyInfo) {
       replyToPeerId: replyToPeerId ? buildInputPeerFromLocalDb(replyToPeerId)! : undefined,
       quoteText: quoteText?.text,
       quoteEntities: quoteText?.entities?.map(buildMtpMessageEntity),
+      quoteOffset,
     });
   }
 
@@ -786,7 +857,7 @@ export function buildInputPrivacyRules(
 
   if (rules.allowedUsers?.length) {
     privacyRules.push(new GramJs.InputPrivacyValueAllowUsers({
-      users: rules.allowedUsers.map(({ id, accessHash }) => buildInputEntity(id, accessHash) as GramJs.InputUser),
+      users: rules.allowedUsers.map(({ id, accessHash }) => buildInputUser(id, accessHash)),
     }));
   }
   if (rules.allowedChats?.length) {
@@ -798,7 +869,7 @@ export function buildInputPrivacyRules(
   }
   if (rules.blockedUsers?.length) {
     privacyRules.push(new GramJs.InputPrivacyValueDisallowUsers({
-      users: rules.blockedUsers.map(({ id, accessHash }) => buildInputEntity(id, accessHash) as GramJs.InputUser),
+      users: rules.blockedUsers.map(({ id, accessHash }) => buildInputUser(id, accessHash)),
     }));
   }
   if (rules.blockedChats?.length) {

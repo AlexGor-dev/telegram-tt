@@ -28,7 +28,6 @@ export default class CallbackSession extends MemorySession {
         const {
             mainDcId,
             keys,
-            hashes,
             isTest,
         } = this._sessionData;
         const {
@@ -41,20 +40,10 @@ export default class CallbackSession extends MemorySession {
         await Promise.all(Object.keys(keys)
             .map(async (dcIdStr) => {
                 const dcId = Number(dcIdStr);
-                const key = typeof keys[dcId] === 'string'
-                    ? Buffer.from(keys[dcId] as string, 'hex')
-                    : Buffer.from(keys[dcId]);
+                const key = Buffer.from(keys[dcId], 'hex');
 
-                if (hashes[dcId]) {
-                    const hash = typeof hashes[dcId] === 'string'
-                        ? Buffer.from(hashes[dcId] as string, 'hex')
-                        : Buffer.from(hashes[dcId]);
-
-                    this._authKeys[dcId] = new AuthKey(key, hash);
-                } else {
-                    this._authKeys[dcId] = new AuthKey();
-                    await this._authKeys[dcId].setKey(key);
-                }
+                this._authKeys[dcId] = new AuthKey();
+                await this._authKeys[dcId].setKey(key);
             }));
     }
 
@@ -85,7 +74,6 @@ export default class CallbackSession extends MemorySession {
         const sessionData: SessionData = {
             mainDcId: this._dcId,
             keys: {},
-            hashes: {},
             isTest: this._isTestServer || undefined,
         };
 
@@ -97,7 +85,6 @@ export default class CallbackSession extends MemorySession {
                 if (!authKey?._key) return;
 
                 sessionData.keys[dcId] = authKey._key.toString('hex');
-                sessionData.hashes[dcId] = authKey._hash!.toString('hex');
             });
 
         return sessionData;

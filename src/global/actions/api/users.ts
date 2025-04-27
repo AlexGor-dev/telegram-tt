@@ -30,6 +30,7 @@ import { updateTabState } from '../../reducers/tabs';
 import {
   selectChat,
   selectChatFullInfo,
+  selectIsCurrentUserFrozen,
   selectIsCurrentUserPremium,
   selectPeer,
   selectPeerPhotos,
@@ -159,6 +160,11 @@ addActionHandler('loadCurrentUser', (): ActionReturnType => {
 
 addActionHandler('loadCommonChats', async (global, actions, payload): Promise<void> => {
   const { userId } = payload;
+
+  if (selectIsCurrentUserFrozen(global)) {
+    return;
+  }
+
   const user = selectUser(global, userId);
   const commonChats = selectUserCommonChats(global, userId);
   if (!user || isUserBot(user) || commonChats?.isFullyLoaded) {
@@ -180,6 +186,47 @@ addActionHandler('loadCommonChats', async (global, actions, payload): Promise<vo
     ids,
     isFullyLoaded: ids.length >= count,
   });
+
+  setGlobal(global);
+});
+
+addActionHandler('addNoPaidMessagesException', async (global, actions, payload): Promise<void> => {
+  const { userId, shouldRefundCharged } = payload;
+  const user = selectUser(global, userId);
+  if (!user) {
+    return;
+  }
+
+  const result = await callApi('addNoPaidMessagesException',
+    { user, shouldRefundCharged });
+  if (!result) {
+    return;
+  }
+
+  global = getGlobal();
+  global = updateUserFullInfo(global, userId, {
+    settings: undefined,
+  });
+  setGlobal(global);
+});
+
+addActionHandler('openChatRefundModal', async (global, actions, payload): Promise<void> => {
+  const { userId, tabId = getCurrentTabId() } = payload;
+  const user = selectUser(global, userId);
+  if (!user) {
+    return;
+  }
+
+  const starsAmount = await callApi('fetchPaidMessagesRevenue', { user });
+  if (starsAmount === undefined) return;
+
+  global = getGlobal();
+  global = updateTabState(global, {
+    chatRefundModal: {
+      userId,
+      starsToRefund: starsAmount,
+    },
+  }, tabId);
 
   setGlobal(global);
 });
@@ -217,7 +264,7 @@ addActionHandler('updateContact', async (global, actions, payload): Promise<void
   }
 
   if (result) {
-    actions.loadChatSettings({ chatId: userId });
+    actions.loadPeerSettings({ peerId: userId });
     actions.loadPeerStories({ peerId: userId });
 
     global = getGlobal();
@@ -253,6 +300,8 @@ addActionHandler('deleteContact', async (global, actions, payload): Promise<void
 });
 
 addActionHandler('loadMoreProfilePhotos', async (global, actions, payload): Promise<void> => {
+  if (selectIsCurrentUserFrozen(global)) return;
+
   const { peerId, shouldInvalidateCache, isPreload } = payload;
   const isPrivate = isUserId(peerId);
 
@@ -389,7 +438,7 @@ addActionHandler('reportSpam', (global, actions, payload): ActionReturnType => {
 
 addActionHandler('setEmojiStatus', async (global, actions, payload): Promise<void> => {
   const {
-    emojiStatusId, referrerWebAppKey, expires, tabId = getCurrentTabId(),
+    emojiStatus, referrerWebAppKey, tabId = getCurrentTabId(),
   } = payload;
 
   const isCurrentUserPremium = selectIsCurrentUserPremium(global);
@@ -411,7 +460,7 @@ addActionHandler('setEmojiStatus', async (global, actions, payload): Promise<voi
     return;
   }
 
-  const result = await callApi('updateEmojiStatus', emojiStatusId, expires);
+  const result = await callApi('updateEmojiStatus', emojiStatus);
 
   if (referrerWebAppKey) {
     if (!result) {
@@ -439,7 +488,7 @@ addActionHandler('setEmojiStatus', async (global, actions, payload): Promise<voi
       message: {
         key: 'BotSuggestedStatusUpdated',
       },
-      customEmojiIconId: emojiStatusId,
+      customEmojiIconId: emojiStatus.documentId,
       tabId,
     });
   }
@@ -503,6 +552,32 @@ addActionHandler('openSuggestedStatusModal', async (global, actions, payload): P
       botId,
     },
   }, tabId);
+  setGlobal(global);
+});
+
+addActionHandler('loadPeerSettings', async (global, actions, payload): Promise<void> => {
+  const { peerId } = payload;
+
+  if (selectIsCurrentUserFrozen(global)) return;
+
+  const userFullInfo = selectUserFullInfo(global, peerId);
+  if (!userFullInfo) {
+    actions.loadFullUser({ userId: peerId });
+    return;
+  }
+
+  const user = selectUser(global, peerId);
+  if (!user) {
+    return;
+  }
+
+  const result = await callApi('fetchPeerSettings', user);
+  if (!result) return;
+
+  const { settings } = result;
+
+  global = getGlobal();
+  global = updateUserFullInfo(global, peerId, { settings });
   setGlobal(global);
 });
 

@@ -16,10 +16,10 @@ import { MENU_TRANSITION_DURATION, RECENT_SYMBOL_SET_ID, SEARCH_SYMBOL_SET_ID } 
 import { selectCurrentEmojiSearch } from '../../../global/selectors';
 import animateHorizontalScroll from '../../../util/animateHorizontalScroll';
 import animateScroll from '../../../util/animateScroll';
+import { IS_TOUCH_ENV } from '../../../util/browser/windowEnvironment';
 import buildClassName from '../../../util/buildClassName';
 import { uncompressEmoji } from '../../../util/emoji/emoji';
 import { MEMO_EMPTY_ARRAY } from '../../../util/memo';
-import { IS_TOUCH_ENV } from '../../../util/windowEnvironment';
 import { REM } from '../../common/helpers/mediaDimensions';
 
 import useAppLayout from '../../../hooks/useAppLayout';

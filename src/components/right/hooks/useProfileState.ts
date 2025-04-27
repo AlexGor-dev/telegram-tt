@@ -89,7 +89,7 @@ export default function useProfileState(
     }
 
     let state: ProfileState = ProfileState.Profile;
-    if (container.scrollTop >= tabListEl.offsetTop) {
+    if (Math.ceil(container.scrollTop) >= tabListEl.offsetTop) {
       state = getStateFromTabType(tabType);
     }
 
@@ -121,6 +121,8 @@ function getStateFromTabType(tabType: ProfileTabType) {
   switch (tabType) {
     case 'members':
       return ProfileState.MemberList;
+    case 'gifts':
+      return ProfileState.GiftList;
     case 'stories':
       return ProfileState.StoryList;
     case 'dialogs':

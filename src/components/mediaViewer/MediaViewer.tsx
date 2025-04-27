@@ -122,7 +122,7 @@ const MediaViewer = ({
     toggleChatInfo,
     searchChatMediaMessages,
     loadMoreProfilePhotos,
-    clickSponsoredMessage,
+    clickSponsored,
     openUrl,
   } = getActions();
 
@@ -245,7 +245,9 @@ const MediaViewer = ({
 
   const handleClose = useLastCallback(() => closeMediaViewer());
 
-  const handleFooterClick = useLastCallback(() => {
+  const handleFooterClick = useLastCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target instanceof HTMLElement && e.target.closest('a')) return; // Prevent closing on timestamp click
+
     handleClose();
 
     if (!chatId || !messageId) return;
@@ -263,7 +265,7 @@ const MediaViewer = ({
   const handleSponsoredClick = useLastCallback((isFromMedia?: boolean) => {
     if (!sponsoredMessage || !chatId) return;
 
-    clickSponsoredMessage({ isMedia: isFromMedia, isFullscreen: true, peerId: chatId });
+    clickSponsored({ isMedia: isFromMedia, isFullscreen: true, randomId: sponsoredMessage.randomId });
     openUrl({ url: sponsoredMessage!.url });
     closeMediaViewer();
   });

@@ -29,7 +29,9 @@ import {
   updateStickersForEmoji,
 } from '../../reducers';
 import { updateTabState } from '../../reducers/tabs';
-import { selectIsCurrentUserPremium, selectStickerSet, selectTabState } from '../../selectors';
+import {
+  selectIsCurrentUserFrozen, selectIsCurrentUserPremium, selectStickerSet, selectTabState,
+} from '../../selectors';
 import { selectCurrentLimit, selectPremiumLimit } from '../../selectors/limits';
 
 const ADDED_SETS_THROTTLE = 200;
@@ -128,6 +130,10 @@ addActionHandler('loadFavoriteStickers', async (global): Promise<void> => {
 addActionHandler('loadPremiumStickers', async (global): Promise<void> => {
   const { hash } = global.stickers.premium || {};
 
+  if (selectIsCurrentUserFrozen(global)) {
+    return;
+  }
+
   const result = await callApi('fetchStickersForEmoji', { emoji: '⭐️⭐️', hash });
   if (!result) {
     return;
@@ -150,6 +156,10 @@ addActionHandler('loadPremiumStickers', async (global): Promise<void> => {
 
 addActionHandler('loadGreetingStickers', async (global): Promise<void> => {
   const { hash } = global.stickers.greeting || {};
+
+  if (selectIsCurrentUserFrozen(global)) {
+    return;
+  }
 
   const greeting = await callApi('fetchStickersForEmoji', { emoji: '👋⭐️', hash });
   if (!greeting) {
@@ -237,6 +247,31 @@ addActionHandler('loadDefaultStatusIcons', async (global): Promise<void> => {
   global = updateStickerSet(global, fullSet.id, fullSet);
   global = { ...global, defaultStatusIconsId: fullSet.id };
   setGlobal(global);
+});
+
+addActionHandler('loadUserCollectibleStatuses', async (global, actions): Promise<void> => {
+  setGlobal(global);
+
+  const { hash } = global.collectibleEmojiStatuses || {};
+
+  const result = await callApi('fetchCollectibleEmojiStatuses', { hash });
+  if (!result) {
+    return;
+  }
+
+  global = getGlobal();
+
+  global = {
+    ...global,
+    collectibleEmojiStatuses: {
+      hash: result.hash,
+      statuses: result.statuses,
+    },
+  };
+  setGlobal(global);
+  const documentIds = result.statuses.map(({ documentId }) => documentId);
+
+  actions.loadCustomEmojis({ ids: documentIds });
 });
 
 addActionHandler('loadStickers', (global, actions, payload): ActionReturnType => {

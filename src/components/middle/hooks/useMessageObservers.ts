@@ -4,7 +4,7 @@ import { getActions } from '../../../global';
 import type { MessageListType } from '../../../types';
 import type { OnIntersectPinnedMessage } from './usePinnedMessage';
 
-import { IS_ANDROID } from '../../../util/windowEnvironment';
+import { IS_ANDROID } from '../../../util/browser/windowEnvironment';
 
 import useAppLayout from '../../../hooks/useAppLayout';
 import { useIntersectionObserver } from '../../../hooks/useIntersectionObserver';
@@ -86,7 +86,7 @@ export default function useMessageObservers(
     }
 
     if (mentionIds.length) {
-      markMentionsRead({ messageIds: mentionIds });
+      markMentionsRead({ chatId, messageIds: mentionIds });
     }
 
     if (reactionIds.length) {

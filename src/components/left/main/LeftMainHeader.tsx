@@ -5,7 +5,7 @@ import React, {
 import { getActions, withGlobal } from '../../../global';
 
 import type { GlobalState } from '../../../global/types';
-import type { ISettings } from '../../../types';
+import type { ThemeKey } from '../../../types';
 import { LeftColumnContent, SettingsScreens } from '../../../types';
 
 import {
@@ -20,10 +20,11 @@ import {
   selectTabState,
   selectTheme,
 } from '../../../global/selectors';
+import { selectSharedSettings } from '../../../global/selectors/sharedState';
+import { IS_APP, IS_ELECTRON, IS_MAC_OS } from '../../../util/browser/windowEnvironment';
 import buildClassName from '../../../util/buildClassName';
 import captureEscKeyListener from '../../../util/captureEscKeyListener';
 import { formatDateToString } from '../../../util/dates/dateFormat';
-import { IS_APP, IS_ELECTRON, IS_MAC_OS } from '../../../util/windowEnvironment';
 
 import useAppLayout from '../../../hooks/useAppLayout';
 import useConnectionStatus from '../../../hooks/useConnectionStatus';
@@ -69,10 +70,10 @@ type StateProps =
     isLoading: boolean;
     globalSearchChatId?: string;
     searchDate?: number;
-    theme: ISettings['theme'];
+    theme: ThemeKey;
     isMessageListOpen: boolean;
     isCurrentUserPremium?: boolean;
-    isConnectionStatusMinimized: ISettings['isConnectionStatusMinimized'];
+    isConnectionStatusMinimized?: boolean;
     areChatsLoaded?: boolean;
     hasPasscode?: boolean;
     canSetPasscode?: boolean;
@@ -111,7 +112,7 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
 }) => {
   const {
     setGlobalSearchDate,
-    setSettingOption,
+    setSharedSettingOption,
     setGlobalSearchChatId,
     lockScreen,
     requestNextSettingsScreen,
@@ -119,7 +120,7 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
 
   const oldLang = useOldLang();
   const lang = useLang();
-  const { isMobile, isDesktop } = useAppLayout();
+  const { isMobile } = useAppLayout();
 
   const [isBotMenuOpen, markBotMenuOpen, unmarkBotMenuOpen] = useFlag();
 
@@ -187,18 +188,18 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
   });
 
   const toggleConnectionStatus = useLastCallback(() => {
-    setSettingOption({ isConnectionStatusMinimized: !isConnectionStatusMinimized });
+    setSharedSettingOption({ isConnectionStatusMinimized: !isConnectionStatusMinimized });
   });
 
   const handleLockScreen = useLastCallback(() => {
     lockScreen();
   });
 
-  const isSearchFocused = (!isDesktop && !isMessageListOpen) && (
-    Boolean(globalSearchChatId)
+  const isSearchRelevant = Boolean(globalSearchChatId)
     || content === LeftColumnContent.GlobalSearch
-    || content === LeftColumnContent.Contacts
-  );
+    || content === LeftColumnContent.Contacts;
+
+  const isSearchFocused = isMobile ? !isMessageListOpen && isSearchRelevant : isSearchRelevant;
 
   useEffect(() => (isSearchFocused ? captureEscKeyListener(() => onReset()) : undefined), [isSearchFocused, onReset]);
 
@@ -220,7 +221,8 @@ const LeftMainHeader: FC<OwnProps & StateProps> = ({
   const headerRef = useRef<HTMLDivElement>(null);
   useElectronDrag(headerRef);
 
-  const withStoryToggler = !isSearchFocused && !selectedSearchDate && !globalSearchChatId && !areContactsVisible;
+  const withStoryToggler = !isSearchFocused
+    && !selectedSearchDate && !globalSearchChatId && !areContactsVisible;
 
   const searchContent = useMemo(() => {
     return (
@@ -343,7 +345,7 @@ export default memo(withGlobal<OwnProps>(
     const {
       connectionState, isSyncing, isFetchingDifference,
     } = global;
-    const { isConnectionStatusMinimized } = global.settings.byKey;
+    const { isConnectionStatusMinimized } = selectSharedSettings(global);
 
     return {
       searchQuery,
