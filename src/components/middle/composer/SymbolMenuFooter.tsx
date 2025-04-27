@@ -86,7 +86,7 @@ const SymbolMenuFooter: FC<OwnProps> = ({
       )}
 
       {canSendPlainText && renderTabButton(SymbolMenuTabs.Emoji)}
-      {canSendPlainText && renderTabButton(SymbolMenuTabs.CustomEmoji)}
+      {/*{canSendPlainText && renderTabButton(SymbolMenuTabs.CustomEmoji)}*/}
       {!isAttachmentModal && renderTabButton(SymbolMenuTabs.Stickers)}
       {!isAttachmentModal && renderTabButton(SymbolMenuTabs.GIFs)}
 

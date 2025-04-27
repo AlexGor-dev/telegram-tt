@@ -25,6 +25,7 @@ import Icon from '../../common/icons/Icon';
 import Button from '../../ui/Button';
 import Menu from '../../ui/Menu';
 import Portal from '../../ui/Portal';
+import SearchInput from '../../ui/SearchInput';
 import Transition from '../../ui/Transition';
 import EmojiPicker from './EmojiPicker';
 import GifPicker from './GifPicker';
@@ -32,6 +33,7 @@ import StickerPicker from './StickerPicker';
 import SymbolMenuFooter, { SYMBOL_MENU_TAB_TITLES, SymbolMenuTabs } from './SymbolMenuFooter';
 
 import './SymbolMenu.scss';
+import {FOLDER_ICONS, FolderDesc} from "../../common/helpers/renderText";
 
 const ANIMATION_DURATION = 350;
 const STICKERS_TAB_INDEX = 2;
@@ -200,6 +202,8 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
         return (
           <EmojiPicker
             className="picker-tab"
+            useSearch
+            useSearchInput
             onEmojiSelect={handleEmojiSelect}
           />
         );
@@ -247,6 +251,7 @@ const SymbolMenu: FC<OwnProps & StateProps> = ({
   function stopPropagation(event: any) {
     event.stopPropagation();
   }
+
 
   const content = (
     <>

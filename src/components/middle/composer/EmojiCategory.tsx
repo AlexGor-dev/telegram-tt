@@ -58,10 +58,10 @@ const EmojiCategory: FC<OwnProps> = ({
       id={`emoji-category-${index}`}
       className="symbol-set"
     >
-      { category.id !== SEARCH_SYMBOL_SET_ID && (
+      { category.id !== SEARCH_SYMBOL_SET_ID && category.id !== RECENT_SYMBOL_SET_ID && (
         <div className="symbol-set-header">
           <p className="symbol-set-name" dir="auto">
-            {lang(category.id === RECENT_SYMBOL_SET_ID ? 'RecentStickers' : `Emoji${index}`)}
+            {lang(`Emoji${index}`)}
           </p>
         </div>
       )}

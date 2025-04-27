@@ -9,6 +9,9 @@ export default function deleteLastCharacterOutsideSelection(html: string) {
   document.body.appendChild(tempInput);
   let element = tempInput.lastChild!;
 
+  if (!element) {
+    return html;
+  }
   if (element.lastChild) {
     // Selects the last and the deepest child of the element.
     while (element.lastChild) {

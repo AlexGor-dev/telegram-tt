@@ -29,9 +29,9 @@ export class UndoManager {
   }
 
   public add(text: string, start?: number, end?: number, scroll?: number) {
-    if (start === undefined) start = this.data.start;
-    if (end === undefined) end = this.data.end;
-    if (scroll === undefined) scroll = this.data.scroll;
+    if (!start) start = this.data.start;
+    if (!end) end = this.data.end;
+    if (!scroll) scroll = this.data.scroll;
     const state = this.current();
     if (state) {
       if (text === state.text

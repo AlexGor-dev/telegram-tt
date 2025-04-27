@@ -28,7 +28,7 @@ export function buildCustomEmojiHtml(emoji: ApiSticker) {
   />`;
 }
 
-export function buildCustomEmojiHtmlFromEntity(rawText: string, entity: ApiMessageEntityCustomEmoji) {
+export function buildCustomEmojiHtmlFromEntity(rawText: string, entity: ApiMessageEntityCustomEmoji, addClassName = '') {
   const customEmoji = getGlobal().customEmojis.byId[entity.documentId];
   const [isPlaceholder, src, uniqueId] = getInputCustomEmojiParams(customEmoji);
 
@@ -38,6 +38,7 @@ export function buildCustomEmojiHtmlFromEntity(rawText: string, entity: ApiMessa
     'emoji-small',
     isPlaceholder && 'placeholder',
     customEmoji?.shouldUseTextColor && 'colorable',
+    addClassName,
   );
 
   return `<img

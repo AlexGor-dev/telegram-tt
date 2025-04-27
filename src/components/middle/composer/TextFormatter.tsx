@@ -89,7 +89,6 @@ const TextFormatter: FC<OwnProps> = ({
   undoManager,
   selectedRange,
   editableInputId,
-  setSelectedRange,
   onClose,
   onUpdate,
   processSelection,
@@ -164,14 +163,6 @@ const TextFormatter: FC<OwnProps> = ({
     }
   });
 
-  // const updateSelectedRange = useLastCallback(() => {
-  //   const selection = window.getSelection();
-  //   if (selection) {
-  //     setSelectedRange(selection.getRangeAt(0));
-  //   }
-  // });
-
-  // mycode
   const getInput = useLastCallback(() => {
     if (inputDiv) {
       return inputDiv;
@@ -370,7 +361,6 @@ const TextFormatter: FC<OwnProps> = ({
               break;
             }
           }
-          // onClose();
         }
       } else if (defFolmat) {
         document.execCommand(format);
@@ -379,7 +369,7 @@ const TextFormatter: FC<OwnProps> = ({
         if (text) {
           switch (format) {
             case TextFormats.monospace:
-              document.execCommand('insertHTML', false, `<code class="text-entity-code" dir="auto">${text}</code>`);
+              document.execCommand('insertHTML', false, `<code class="text-entity-code" dir="auto" data-entity-type="${ApiMessageEntityTypes.Code}">${text}</code>`);
               break;
             case TextFormats.quote:
             case TextFormats.code: {
@@ -404,7 +394,7 @@ const TextFormatter: FC<OwnProps> = ({
                 if (undoManager) {
                   undoManager.setSelection(start, end);
                 }
-                document.execCommand('insertHTML', false, `${n}${codeBlockHtml(text, lang)}`);
+                document.execCommand('insertHTML', false, `${n}${codeBlockHtml(text, '', lang)}`);
               }
             }
               break;
@@ -413,7 +403,6 @@ const TextFormatter: FC<OwnProps> = ({
               break;
           }
         }
-        // onClose();
       }
       setSelectionRangePosition(input, start, end);
       processSelection();

@@ -1,10 +1,11 @@
-import type { FC } from '../../../lib/teact/teact';
+import type { FC, TeactNode, VirtualElement } from '../../../lib/teact/teact';
 import React, { memo, useCallback, useState } from '../../../lib/teact/teact';
 import TeactDOM from '../../../lib/teact/teact-dom';
 
 import { ApiMessageEntityTypes } from '../../../api/types';
 
 import buildClassName from '../../../util/buildClassName';
+import highlightCode, {highlightCodeSync} from '../../../util/highlightCode';
 import { getPrettyCodeLanguageName } from '../../../util/prettyCodeLanguageNames';
 
 import useAsync from '../../../hooks/useAsync';
@@ -16,10 +17,12 @@ import './CodeBlock.scss';
 export type OwnProps = {
   text: string;
   language?: string;
+  className?: string;
   noCopy?: boolean;
+  highlightedNode?: TeactNode;
 };
 
-const CodeBlock: FC<OwnProps> = ({ text, language, noCopy }) => {
+const CodeBlock: FC<OwnProps> = ({ text, highlightedNode, className, language, noCopy }) => {
   const [isWordWrap, setWordWrap] = useState(true);
 
   const { result: highlighted } = useAsync(() => {
@@ -35,13 +38,14 @@ const CodeBlock: FC<OwnProps> = ({ text, language, noCopy }) => {
   const blockClass = buildClassName(
     'code-block',
     !isWordWrap && 'no-word-wrap',
+    className,
   );
 
   return (
     <div className="CodeBlock">
       {language && (<p className="code-title">{getPrettyCodeLanguageName(language)}</p>)}
       <pre className={blockClass} data-entity-type={ApiMessageEntityTypes.Pre} data-language={language}>
-        {highlighted ?? text}
+        {highlightedNode ?? highlighted ?? text}
         <CodeOverlay
           text={text}
           className="code-overlay"
@@ -55,10 +59,13 @@ const CodeBlock: FC<OwnProps> = ({ text, language, noCopy }) => {
 
 export default memo(CodeBlock);
 
-export function codeBlockHtml(html: string, lang?: string) {
+export function codeBlockHtml(html: string, className: string, lang?: string) {
   const fragment = document.createElement('div');
-  const div = document.createElement('div');
-  div.innerHTML = html.replace(/<br>/g, '\n');
-  TeactDOM.render(<CodeBlock text={div.innerText} language={lang} noCopy />, fragment);
+  html = html.replace(/<br>/g, '\n');
+  let node : TeactNode | undefined;
+  if (lang) {
+    node = highlightCodeSync(html, lang);
+  }
+  TeactDOM.render(<CodeBlock text={html} highlightedNode={node} language={lang} className={className} noCopy />, fragment);
   return fragment.innerHTML;
 }

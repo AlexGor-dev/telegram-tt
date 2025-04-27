@@ -3,7 +3,7 @@ import React, {
   memo, useEffect, useMemo,
   useRef, useState,
 } from '../../../lib/teact/teact';
-import { withGlobal } from '../../../global';
+import { getActions, withGlobal } from '../../../global';
 
 import type { IconName } from '../../../types/icons';
 import type {
@@ -33,6 +33,7 @@ import useAsyncRendering from '../../right/hooks/useAsyncRendering';
 import Icon from '../../common/icons/Icon';
 import Button from '../../ui/Button';
 import Loading from '../../ui/Loading';
+import SearchInput from '../../ui/SearchInput';
 import EmojiCategory from './EmojiCategory';
 
 import './EmojiPicker.scss';
@@ -40,6 +41,7 @@ import './EmojiPicker.scss';
 type OwnProps = {
   className?: string;
   useSearch?:boolean;
+  useSearchInput?:boolean;
   onEmojiSelect: (emoji: string, name: string) => void;
 };
 
@@ -78,14 +80,17 @@ const EmojiPicker: FC<OwnProps & StateProps> = ({
   className,
   emojiSearchQuery,
   useSearch,
+  useSearchInput,
   recentEmojis,
   onEmojiSelect,
 }) => {
+  const {
+    setEmojiSearchQuery,
+  } = getActions();
   // eslint-disable-next-line no-null/no-null
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line no-null/no-null
   const headerRef = useRef<HTMLDivElement>(null);
-
   const [categories, setCategories] = useState<EmojiCategoryData[]>();
   const [emojis, setEmojis] = useState<AllEmojis>();
   const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
@@ -239,6 +244,9 @@ const EmojiPicker: FC<OwnProps & StateProps> = ({
       }
     });
   }
+  const handleEmojiSearchQueryChange = useLastCallback((query: string) => {
+    setEmojiSearchQuery({ query });
+  });
   return (
     <div className={containerClassName}>
       {!cat && (
@@ -250,11 +258,25 @@ const EmojiPicker: FC<OwnProps & StateProps> = ({
           {allCategories.map(renderCategoryButton)}
         </div>
       )}
+
       <div
         ref={containerRef}
         onScroll={handleContentScroll}
         className={buildClassName('EmojiPicker-main', IS_TOUCH_ENV ? 'no-scrollbar' : 'custom-scroll')}
       >
+        {useSearchInput && (
+          <div style="padding-bottom:1.0rem">
+            <SearchInput
+              value={emojiSearchQuery}
+              // withBackIcon
+              placeholder={lang('SearchEmojiHint')}
+              // autoFocusSearch
+              onChange={handleEmojiSearchQueryChange}
+            >
+              {/* <Icon name="calendar" /> */}
+            </SearchInput>
+          </div>
+        )}
         {cat && (
           <EmojiCategory
             category={cat}

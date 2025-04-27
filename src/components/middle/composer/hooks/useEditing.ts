@@ -22,6 +22,8 @@ import useEffectWithPrevDeps from '../../../../hooks/useEffectWithPrevDeps';
 import useLastCallback from '../../../../hooks/useLastCallback';
 import useBackgroundMode from '../../../../hooks/window/useBackgroundMode';
 import useBeforeUnload from '../../../../hooks/window/useBeforeUnload';
+import {validateHtml} from "../../../../util/markdown/htmlToMarkdown";
+import {parseMarkdownToAst, renderAst} from "../../../../util/markdown/markdownParser";
 
 const URL_ENTITIES = new Set<string>([ApiMessageEntityTypes.TextUrl, ApiMessageEntityTypes.Url]);
 const DEBOUNCE_MS = 300;
@@ -62,7 +64,9 @@ const useEditing = (
     }
 
     const text = !prevEditedMessage && editingDraft?.text.length ? editingDraft : editedMessage.content.text;
-    const html = getTextWithEntitiesAsHtml(text).replace(/&lt;br&gt;/g, '\n');
+    // const html = validateHtml(getTextWithEntitiesAsHtml(text));
+    const root = parseMarkdownToAst(getTextWithEntitiesAsHtml(text));
+    const html = renderAst(root);
     if (chat) {
       chat.undoData = UndoManager.cteateData(html);
     }

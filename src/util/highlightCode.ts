@@ -56,6 +56,13 @@ export default async function highlightCode(text: string, language: string) {
   return treeToElements(tree);
 }
 
+export function highlightCodeSync(text: string, language: string) {
+  const lowLang = language.toLowerCase();
+  if (!lowlight.registered(lowLang)) return undefined;
+  const tree = lowlight.highlight(lowLang, text);
+  return treeToElements(tree);
+}
+
 function getLanguageName(alias: string) {
   return Object.entries(SUPPORTED_LANGUAGES)
     .find(([langName, aliases]) => langName === alias || aliases.includes(alias))?.[0];

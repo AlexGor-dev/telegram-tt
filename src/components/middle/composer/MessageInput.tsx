@@ -1,38 +1,53 @@
-import type { ChangeEvent, RefObject } from 'react';
-import type { FC } from '../../../lib/teact/teact';
-import React, {
-  getIsHeavyAnimating,
-  memo, useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from '../../../lib/teact/teact';
-import { getActions, withGlobal } from '../../../global';
+import type {ChangeEvent, RefObject} from 'react';
+import type {FC} from '../../../lib/teact/teact';
+import React, {getIsHeavyAnimating, memo, useCallback, useEffect, useLayoutEffect, useRef, useState,} from '../../../lib/teact/teact';
+import {getActions, withGlobal} from '../../../global';
 
-import type { ApiInputMessageReplyInfo } from '../../../api/types';
-import type { IAnchorPosition, ISettings, ThreadId } from '../../../types';
-import type { Signal } from '../../../util/signals';
-import type { UndoManager } from '../../../util/UndoManager';
+import type {ApiInputMessageReplyInfo} from '../../../api/types';
+import type {IAnchorPosition, ISettings, ThreadId} from '../../../types';
+import type {Signal} from '../../../util/signals';
+import type {UndoManager} from '../../../util/UndoManager';
 
-import { EDITABLE_INPUT_ID } from '../../../config';
-import { requestForcedReflow, requestMutation } from '../../../lib/fasterdom/fasterdom';
-import {
-  selectCanPlayAnimatedEmojis, selectDraft, selectIsInSelectMode,
-} from '../../../global/selectors';
+import {EDITABLE_INPUT_ID} from '../../../config';
+import {requestForcedReflow, requestMutation} from '../../../lib/fasterdom/fasterdom';
+import {selectCanPlayAnimatedEmojis, selectDraft, selectIsInSelectMode} from '../../../global/selectors';
 import buildClassName from '../../../util/buildClassName';
 import captureKeyboardListeners from '../../../util/captureKeyboardListeners';
-import { getIsDirectTextInputDisabled } from '../../../util/directInputManager';
+import {getIsDirectTextInputDisabled} from '../../../util/directInputManager';
 import parseEmojiOnlyString from '../../../util/emoji/parseEmojiOnlyString';
 import focusEditableElement from '../../../util/focusEditableElement';
-import { htmlToMarkdown, isHtml, TG_TAGS } from '../../../util/markdown/htmlToMarkdown';
-import { debounce } from '../../../util/schedulers';
-import { getSelectedText, getSelectionRangePosition, setSelectionRangePosition } from '../../../util/selection';
+import {htmlToMarkdown, isHtml, TG_TAGS,} from '../../../util/markdown/htmlToMarkdown';
 import {
-  IS_ANDROID, IS_EMOJI_SUPPORTED, IS_IOS, IS_TOUCH_ENV,
-} from '../../../util/windowEnvironment';
+  AST_TYPE_BY_NODE_NAME,
+  AstNodeType,
+  getClosedElement,
+  getCursorOffset,
+  isClosedElement,
+  isEditableElement,
+  parseMarkdownToAst,
+  renderAst,
+  setEditableNode,
+  setEditableNodes,
+  setNotClosedNodes,
+  setNotEditable,
+  validateNotClosed,
+} from '../../../util/markdown/markdownParser';
+import {debounce} from '../../../util/schedulers';
+import {
+  getCaretPosition,
+  getCaretPositionEnd,
+  getNextNewline,
+  getPrevNewline,
+  getSelectedElement,
+  getSelectedText,
+  getSelectedText2,
+  getSelectionRangePosition,
+  setMinCaretPosition,
+  setSelectionRangePosition,
+} from '../../../util/selection';
+import {IS_ANDROID, IS_EMOJI_SUPPORTED, IS_IOS, IS_TOUCH_ENV,} from '../../../util/windowEnvironment';
 import renderText from '../../common/helpers/renderText';
-import { isSelectionInsideInput } from './helpers/selection';
+import {isSelectionInsideInput} from './helpers/selection';
 
 import useAppLayout from '../../../hooks/useAppLayout';
 import useDerivedState from '../../../hooks/useDerivedState';
@@ -167,6 +182,8 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   const sharedCanvasHqRef = useRef<HTMLCanvasElement>(null);
   // eslint-disable-next-line no-null/no-null
   const absoluteContainerRef = useRef<HTMLDivElement>(null);
+  const lastCursorPositionRef = useRef<number>(-1);
+  const lastSelectionPosRef = useRef<number>(-1);
 
   const lang = useOldLang();
   const isContextMenuOpenRef = useRef(false);
@@ -176,6 +193,8 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   const [isTextFormatterDisabled, setIsTextFormatterDisabled] = useState<boolean>(false);
   const { isMobile } = useAppLayout();
   const isMobileDevice = isMobile && (IS_IOS || IS_ANDROID);
+
+  // const [lastCursorPosition, setCursorPosition] = useState(-1);
 
   const [shouldDisplayTimer, setShouldDisplayTimer] = useState(false);
 
@@ -191,6 +210,20 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       selection.removeAllRanges();
     } else if (selection.empty) {
       selection.empty();
+    }
+  }
+
+  function setCursorPosition(pos: number) {
+    if (lastCursorPositionRef) {
+      lastCursorPositionRef.current = pos;
+    }
+  }
+  function setCursorPositionFromLast() {
+    if (lastCursorPositionRef) {
+      const pos = lastCursorPositionRef.current;
+      if (pos !== -1 && getSelectedText2().length === 0) {
+        setMinCaretPosition(inputRef.current!, pos);
+      }
     }
   }
   useEffect(() => {
@@ -216,6 +249,7 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   const maxInputHeight = isAttachmentModalInput
     ? MAX_ATTACHMENT_MODAL_INPUT_HEIGHT
     : isStoryInput ? MAX_STORY_MODAL_INPUT_HEIGHT : (isMobile ? 256 : 416);
+
   const updateInputHeight = useLastCallback((willSend = false) => {
     requestForcedReflow(() => {
       const scroller = getInputScroller(inputRef.current)!;
@@ -271,7 +305,8 @@ const MessageInput: FC<OwnProps & StateProps> = ({
 
       updateInputHeight(!html);
     }
-  }, [getHtml, isActive, updateInputHeight]);
+    setCursorPositionFromLast();
+  }, [getHtml, isActive, lastCursorPositionRef, updateInputHeight]);
 
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
@@ -368,7 +403,6 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   function handleMouseDown(e: React.MouseEvent<HTMLDivElement, MouseEvent>) {
     if (e.button !== 2) {
       const listenerEl = e.currentTarget.closest(`.${INPUT_WRAPPER_CLASS}`) || e.target;
-
       listenerEl.addEventListener('mouseup', processSelectionWithTimeout, { once: true });
       return;
     }
@@ -396,34 +430,215 @@ const MessageInput: FC<OwnProps & StateProps> = ({
     document.addEventListener('keydown', handleCloseContextMenu);
   }
 
+  function setCaretPosition(pos: number, prev = false) {
+    const range = setMinCaretPosition(inputRef.current!, pos, prev);
+    if (range) {
+      const rect = range.getBoundingClientRect();
+      const scroller = getInputScroller(inputRef.current)!;
+      const scrollRect = scroller.getBoundingClientRect();
+      if (rect.bottom > scrollRect.bottom) {
+        scroller.scrollTop += rect.height + rect.bottom - scrollRect.bottom;
+      } else if (rect.top < scrollRect.top) {
+        scroller.scrollTop -= scrollRect.top - rect.top;
+      }
+    }
+  }
+  function updateHtml(html: string, pos: number) {
+    setCursorPosition(pos);
+    if (getHtml() !== html) {
+      inputRef.current!.innerHTML = html;
+      onUpdate(html);
+      if (undoManager) {
+        undoManager.add(inputRef.current!.innerHTML, pos, pos);
+      }
+    }
+    setMinCaretPosition(inputRef.current!, pos);
+  }
+
+  function updateKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (inputRef.current) {
+      if (undoManager && e.ctrlKey && e.code === 'KeyZ') {
+        const state = e.shiftKey ? undoManager.redo() : undoManager.undo();
+        if (state) {
+          inputRef.current.innerHTML = state.text!;
+          if (state.start && state.start === state.end) {
+            setCursorPosition(state.start);
+            lastSelectionPosRef.current = state.start;
+          }
+          onUpdate(inputRef.current.innerHTML);
+          if (state.start && state.end) {
+            setSelectionRangePosition(inputRef.current, state.start!, state.end!);
+          }
+          if (state.scroll !== undefined) {
+            getInputScroller(inputRef.current)!.scrollTop = state.scroll;
+          }
+          processSelection();
+        }
+        e.preventDefault();
+        return;
+      }
+      switch (e.key) {
+        case 'Backspace':
+        case 'Delete': {
+          const selection = window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            if ((range.startContainer === inputRef.current && range.endContainer === inputRef.current)
+                || (range.commonAncestorContainer === inputRef.current && !range.startContainer.previousSibling && !range.endContainer.nextSibling)) {
+              e.preventDefault();
+              updateHtml('', 0);
+            }
+          }
+        }
+          break;
+
+        case 'Enter':
+          if (e.shiftKey) {
+            const [node, cur] = getSelectedElement();
+            if (node && node.textContent && node.parentElement && (!node.textContent[cur] || node.textContent[cur] === '\n')) {
+              const element = node.parentElement === inputRef.current && node.previousSibling ? node.previousSibling : node.parentElement;
+              const type = AST_TYPE_BY_NODE_NAME[element.nodeName];
+              if (type === AstNodeType.Blockquote || type === AstNodeType.Pre) {
+                e.preventDefault();
+                const pos = getCaretPosition(inputRef.current);
+                if (type === AstNodeType.Blockquote) {
+                  element.appendChild(document.createTextNode('\n\n'));
+                } else {
+                  node.textContent = `${node.textContent.substring(0, cur)}\n\n${node.textContent.substring(cur)}`;
+                }
+                updateHtml(inputRef.current.innerHTML, pos + 1);
+              }
+            }
+          }
+          break;
+        case 'ArrowUp':
+        case 'ArrowDown': {
+          const [node, cur] = getSelectedElement();
+          if (node) {
+            e.preventDefault();
+            const top = e.key === 'ArrowUp';
+            const pos = getCaretPosition(inputRef.current);
+            if (top) {
+              const prev = getPrevNewline(node, cur);
+              setCaretPosition(pos - prev, true);
+            } else {
+              const next = getNextNewline(node, cur);
+              setCaretPosition(pos + next);
+            }
+          }
+        }
+          break;
+      }
+    }
+  }
+
+  function insertAfter(referenceNode: Node, newNode: Node) {
+    referenceNode.parentNode?.insertBefore(newNode, referenceNode.nextSibling);
+  }
+  function onSelectionChange() {
+    if (inputRef.current && inputRef.current === document.activeElement) {
+      if (getSelectedText2().length === 0) {
+        const pos = getCaretPosition(inputRef.current);
+        if (pos !== lastSelectionPosRef.current) {
+          let [element] = getSelectedElement();
+          const startOffset = -setNotEditable(inputRef.current, element, pos);
+          let offset = 0;
+          if (!element?.isConnected) {
+            setMinCaretPosition(inputRef.current!, pos + startOffset);
+            [element] = getSelectedElement();
+          }
+          if (element && element !== inputRef.current) {
+            offset = setEditableNode(inputRef.current, element, pos + startOffset);
+          }
+          if (offset !== 0 || startOffset !== 0) {
+            updateHtml(inputRef.current.innerHTML, pos + offset + startOffset);
+          }
+          lastSelectionPosRef.current = pos + offset + startOffset;
+        }
+      }
+    }
+    document.addEventListener('selectionchange', onSelectionChange, { once: true });
+  }
+  document.addEventListener('selectionchange', onSelectionChange, { once: true });
+
+  function updateChanged() {
+    if (inputRef.current && getSelectedText2().length === 0) {
+      let [pos, endOfLine] = getCaretPositionEnd(inputRef.current);
+      const [node] = getSelectedElement();
+      if (node && node.parentElement) {
+        let editableElement = node.parentElement;
+        while (editableElement !== inputRef.current && editableElement.parentElement && isEditableElement(editableElement.parentElement)) {
+          if (!editableElement.parentElement.dataset.entityType) {
+            const type = AST_TYPE_BY_NODE_NAME[editableElement.parentElement.tagName];
+            if (!type) {
+              break;
+            }
+          }
+          editableElement = editableElement.parentElement!;
+        }
+        if (editableElement === inputRef.current) {
+          const root = parseMarkdownToAst(node.textContent!);
+          const block = root.getNotTextNode();
+          if (block) {
+            const html = renderAst(root);
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            setNotClosedNodes(div);
+            setEditableNodes(inputRef.current, div, pos);
+            const element = div.firstChild as HTMLElement;
+            if (element) {
+              editableElement.replaceChild(element, node);
+              let first: Node = element;
+              while (div.firstChild) {
+                const temp = div.firstChild;
+                insertAfter(first, div.firstChild);
+                first = temp;
+              }
+            }
+          }
+        } else {
+          pos += setEditableNode(inputRef.current, editableElement, pos);
+          const editableType = AST_TYPE_BY_NODE_NAME[editableElement.tagName];
+          if (!(editableType === AstNodeType.Pre && isEditableElement(editableElement) && isClosedElement(editableElement))) {
+            const root = parseMarkdownToAst(editableElement.innerHTML, isClosedElement(editableElement));
+            const div = document.createElement('div');
+            div.innerHTML = renderAst(root, true);
+            setEditableNodes(inputRef.current, div, pos);
+            const [closedElement, oldElement] = getClosedElement(editableElement, div.firstChild, node.parentElement);
+            if (closedElement) {
+              validateNotClosed(closedElement);
+              if (editableType === AstNodeType.Pre || editableType === AstNodeType.Blockquote) {
+                pos -= getCursorOffset(inputRef.current, editableElement, div.innerHTML, pos, true);
+              } else {
+                pos -= getCursorOffset(inputRef.current, oldElement || node.parentElement, closedElement.innerHTML, pos, true);
+              }
+              pos++;
+              const type = AST_TYPE_BY_NODE_NAME[closedElement.tagName];
+              if (type === AstNodeType.Pre) {
+                insertAfter(node.parentElement, document.createTextNode('\n'));
+              } else {
+                insertAfter(closedElement, document.createTextNode(' '));
+              }
+            } else if (isEditableElement(editableElement)) {
+              setEditableNode(inputRef.current, div.firstChild!, pos);
+            }
+            editableElement.outerHTML = div.innerHTML;
+          }
+        }
+        lastSelectionPosRef.current = -1;
+        updateHtml(inputRef.current!.innerHTML, pos);
+      }
+    }
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     // https://levelup.gitconnected.com/javascript-events-handlers-keyboard-and-load-events-1b3e46a6b0c3#1960
     const { isComposing } = e;
-
-    const input = e.currentTarget;
-    if (input && undoManager && e.ctrlKey && e.code === 'KeyZ') {
-      const state = e.shiftKey ? undoManager.redo() : undoManager.undo();
-      if (state) {
-        input.innerHTML = state.text!;
-        if (state.start !== undefined && state.end !== undefined) {
-          setSelectionRangePosition(input, state.start!, state.end!);
-        }
-        if (state.scroll !== undefined) {
-          getInputScroller(input)!.scrollTop = state.scroll;
-        }
-        processSelection();
-        onUpdate(input.innerHTML);
-      }
-      e.preventDefault();
-      return;
-    }
-
     const html = getHtml();
     if (!isComposing && !html && (e.metaKey || e.ctrlKey)) {
       const targetIndexDelta = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : undefined;
       if (targetIndexDelta) {
         e.preventDefault();
-
         replyToNextMessage({ targetIndexDelta });
         return;
       }
@@ -437,7 +652,6 @@ const MessageInput: FC<OwnProps & StateProps> = ({
         )
       ) {
         e.preventDefault();
-
         closeTextFormatter();
         onSend();
       }
@@ -445,6 +659,7 @@ const MessageInput: FC<OwnProps & StateProps> = ({
       e.preventDefault();
       editLastMessage();
     } else {
+      updateKey(e);
       e.target.addEventListener('keyup', processSelectionWithTimeout, { once: true });
     }
   }
@@ -466,10 +681,7 @@ const MessageInput: FC<OwnProps & StateProps> = ({
   function handleChange(e: ChangeEvent<HTMLDivElement>) {
     const { innerHTML, textContent } = e.currentTarget;
 
-    if (undoManager) {
-      undoManager.add(innerHTML);
-    }
-    onUpdate(innerHTML === SAFARI_BR ? '' : innerHTML);
+    updateChanged();
 
     // Reset focus on the input to remove any active styling when input is cleared
     if (

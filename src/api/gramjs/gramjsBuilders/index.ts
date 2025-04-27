@@ -329,8 +329,6 @@ export function buildMtpMessageEntity(entity: ApiMessageEntity): GramJs.TypeMess
     type, offset, length,
   } = entity;
 
-  const user = 'userId' in entity ? localDb.users[entity.userId] : undefined;
-
   switch (type) {
     case ApiMessageEntityTypes.Bold:
       return new GramJs.MessageEntityBold({ offset, length });
@@ -352,19 +350,23 @@ export function buildMtpMessageEntity(entity: ApiMessageEntity): GramJs.TypeMess
       return new GramJs.MessageEntityUrl({ offset, length });
     case ApiMessageEntityTypes.Hashtag:
       return new GramJs.MessageEntityHashtag({ offset, length });
-    case ApiMessageEntityTypes.MentionName:
-      return new GramJs.InputMessageEntityMentionName({
-        offset,
-        length,
-        userId: new GramJs.InputUser({ userId: BigInt(user!.id), accessHash: user!.accessHash! }),
-      });
     case ApiMessageEntityTypes.Spoiler:
       return new GramJs.MessageEntitySpoiler({ offset, length });
     case ApiMessageEntityTypes.CustomEmoji:
       return new GramJs.MessageEntityCustomEmoji({ offset, length, documentId: BigInt(entity.documentId) });
-    default:
-      return new GramJs.MessageEntityUnknown({ offset, length });
+    case ApiMessageEntityTypes.MentionName: {
+      const user = 'userId' in entity ? localDb.users[entity.userId] : undefined;
+      if (user) {
+        return new GramJs.InputMessageEntityMentionName({
+          offset,
+          length,
+          userId: new GramJs.InputUser({ userId: BigInt(user!.id), accessHash: user!.accessHash! }),
+        });
+      }
+    }
+      break;
   }
+  return new GramJs.MessageEntityUnknown({ offset, length });
 }
 
 export function buildChatPhotoForLocalDb(photo: GramJs.TypePhoto) {

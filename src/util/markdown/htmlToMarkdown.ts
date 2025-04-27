@@ -1,11 +1,13 @@
 import { ApiMessageEntityTypes } from '../../api/types';
 
-const htmlReg = /<\s*(\w+)[^>]*>((\s*(\w+)[^>]*)|(.*))<\/\s*(\w+)[^/>]*>/gm;
+import { isEditableElement } from './markdownParser';
 
+// const htmlReg = /<\s*(\w+)[^>]*>((\s*(\w+)[^>]*)|(.*))<\/\s*(\w+)[^/>]*>/gm;
+
+const fragment = document.createElement('div');
 export function isHtml(html: string) : boolean {
-  htmlReg.lastIndex = 0;
-  if (htmlReg.exec(html)) return true;
-  return false;
+  fragment.innerHTML = html;
+  return fragment.innerHTML !== fragment.innerText;
 }
 export const TG_TAGS: Record<string, string> = {
   B: '**#text#**',
@@ -25,17 +27,19 @@ export const TG_TAGS: Record<string, string> = {
   Spoiler: '||#text#||',
   CodeTitle: 'code-title',
 };
-
-export function htmlToMarkdown(html: string, map: Record<string, string>) {
+export function validateHtml(html: string) {
   html = html.replace(/&gt;/g, '>').replace(/&lt;/g, '<');
   html = html.replace(/&nbsp;/g, ' ');
   // Replace <div><br></div> with newline (new line in Safari)
   html = html.replace(/<div><br([^>]*)?><\/div>/g, '\n');
   html = html.replace(/<br([^>]*)?>/g, '\n');
-  const fragment = document.createElement('div');
-  fragment.innerHTML = html;
-
+  return html;
+}
+export function htmlToMarkdown(html: string, map: Record<string, string>, ignoryTagPos: number = -1) {
+  html = validateHtml(html);
   let result = '';
+  let position = 0;
+  fragment.innerHTML = html;
 
   function addNode(node: ChildNode) {
     if (node.nodeName === '#text') {
@@ -44,11 +48,12 @@ export function htmlToMarkdown(html: string, map: Record<string, string>) {
     let textContent = '';
     for (const child of node.childNodes) {
       textContent += addNode(child);
+      position += textContent.length;
     }
-    const p = map[node.nodeName];
-    if (p) {
-      return p.replace('#text#', textContent);
-    } else {
+    if (ignoryTagPos !== -1 && position >= ignoryTagPos) {
+      return textContent;
+    }
+    if (node instanceof HTMLElement && !isEditableElement(node)) {
       switch (node.nodeName) {
         case 'BLOCKQUOTE': {
           const split = textContent.split(/\n/g);
@@ -65,19 +70,34 @@ export function htmlToMarkdown(html: string, map: Record<string, string>) {
           break;
         case 'A': {
           const a = node as HTMLAnchorElement;
-          if (!textContent) {
-            for (const img of node.childNodes) {
-              if (img instanceof HTMLImageElement && img.alt) {
-                textContent = img.alt;
-                break;
-              }
-            }
+          let href = a.dataset.href || a.href;
+          if (!href && a.dataset.userId) {
+            href = `tg://emoji?id=${a.dataset.userId}`;
           }
-          return map.Link.replace('#text#', textContent).replace('#url#', a.href);
+          if (!textContent) {
+            return href;
+            // for (const img of node.childNodes) {
+            //   if (img instanceof HTMLImageElement && img.alt) {
+            //     textContent = img.alt;
+            //     break;
+            //   }
+            // }
+          }
+          return map.Link.replace('#text#', textContent).replace('#url#', href);
+        }
+          break;
+        case 'IMG': {
+          const img = node as HTMLImageElement;
+          let href = img.src;
+          if (img.dataset.documentId) {
+            href = `tg://emoji?id=${img.dataset.documentId}`;
+          }
+          if (!img.alt) return href;
+          return map.Link.replace('#text#', img.alt).replace('#url#', href);
         }
           break;
         case 'SPAN':
-          if (node instanceof HTMLElement && node.dataset.entityType === ApiMessageEntityTypes.Spoiler) {
+          if (node.dataset.entityType === ApiMessageEntityTypes.Spoiler) {
             return map.Spoiler.replace('#text#', textContent);
           }
           break;
@@ -90,12 +110,23 @@ export function htmlToMarkdown(html: string, map: Record<string, string>) {
           }
           break;
         case 'P':
-          if (node instanceof HTMLElement && node.classList.contains(map.CodeTitle)) {
+          if (node.classList.contains(map.CodeTitle)) {
             textContent = '';
           }
           break;
-        default:
-
+        case 'CODE':
+          if (node.dataset.entityType === ApiMessageEntityTypes.Code) {
+            return map.CODE.replace('#text#', textContent);
+          }
+          break;
+        case 'BR':
+          return `${textContent}\n`;
+        default: {
+          const p = map[node.nodeName];
+          if (p) {
+            return p.replace('#text#', textContent);
+          }
+        }
           break;
       }
     }

@@ -105,8 +105,15 @@ import { tryParseDeepLink } from '../../util/deepLinkParser';
 import deleteLastCharacterOutsideSelection from '../../util/deleteLastCharacterOutsideSelection';
 import { processMessageInputForCustomEmoji } from '../../util/emoji/customEmojiManager';
 import focusEditableElement from '../../util/focusEditableElement';
+import {parseMarkdownToEntries, renderAst, RootNode, setEditableNodes, setNotEditable} from '../../util/markdown/markdownParser';
 import { MEMO_EMPTY_ARRAY } from '../../util/memo';
 import parseHtmlAsFormattedText from '../../util/parseHtmlAsFormattedText';
+import {
+  getCaretPosition,
+  getSelectionRangePosition,
+  insertHtmlInSelection,
+  setMinCaretPosition,
+} from '../../util/selection';
 import { getServerTime } from '../../util/serverTime';
 import { UndoManager } from '../../util/UndoManager';
 import { IS_IOS, IS_VOICE_RECORDING_SUPPORTED } from '../../util/windowEnvironment';
@@ -163,7 +170,7 @@ import DropArea, { DropAreaState } from '../middle/composer/DropArea.async';
 import EmojiTooltip from '../middle/composer/EmojiTooltip.async';
 import InlineBotTooltip from '../middle/composer/InlineBotTooltip.async';
 import MentionTooltip from '../middle/composer/MentionTooltip.async';
-import MessageInput, {getInputScroller} from '../middle/composer/MessageInput';
+import MessageInput, { getInputScroller } from '../middle/composer/MessageInput';
 import PollModal from '../middle/composer/PollModal.async';
 import SendAsMenu from '../middle/composer/SendAsMenu.async';
 import StickerTooltip from '../middle/composer/StickerTooltip.async';
@@ -179,7 +186,6 @@ import Icon from './icons/Icon';
 import ReactionAnimatedEmoji from './reactions/ReactionAnimatedEmoji';
 
 import './Composer.scss';
-import {getSelectionRangePosition, insertHtmlInSelection} from "../../util/selection";
 
 type ComposerType = 'messageList' | 'story';
 
@@ -526,6 +532,10 @@ const Composer: FC<OwnProps & StateProps> = ({
     }
   }, [hasWebPagePreview]);
 
+  const onInputTextChanged = useLastCallback((innerHTML: string) => {
+      setHtml(innerHTML);
+  });
+
   const insertHtmlAndUpdateCursor = useLastCallback((newHtml: string, inInputId: string = editableInputId) => {
     if (inInputId === editableInputId && isComposerBlocked) return;
     const selection = window.getSelection()!;
@@ -546,6 +556,7 @@ const Composer: FC<OwnProps & StateProps> = ({
           undoManager.add(messageInput.innerHTML, start, end, scroller?.scrollTop);
           insertHtmlInSelection(newHtml);
           [start, end] = getSelectionRangePosition(messageInput);
+          setEditableNodes(messageInput, messageInput, start);
           undoManager.add(messageInput.innerHTML, start, end, scroller?.scrollTop);
           setHtml(messageInput.innerHTML);
         } else {
@@ -577,6 +588,13 @@ const Composer: FC<OwnProps & StateProps> = ({
     text: ApiFormattedText, inInputId: string = editableInputId,
   ) => {
     const newHtml = getTextWithEntitiesAsHtml(text).replace(/<br>/g, '\n');
+    insertHtmlAndUpdateCursor(newHtml, inInputId);
+  });
+
+  const insertNodeAndUpdateCursor = useLastCallback((
+    root: RootNode, inInputId,
+  ) => {
+    const newHtml = renderAst(root, true, true);
     insertHtmlAndUpdateCursor(newHtml, inInputId);
   });
 
@@ -891,6 +909,7 @@ const Composer: FC<OwnProps & StateProps> = ({
   useClipboardPaste(
     isForCurrentMessageList || isInStoryViewer,
     insertFormattedTextAndUpdateCursor,
+    insertNodeAndUpdateCursor,
     handleSetAttachments,
     setNextText,
     editingMessage,
@@ -1064,7 +1083,10 @@ const Composer: FC<OwnProps & StateProps> = ({
         )];
       }
     }
-
+    if (inputRef.current) {
+      setNotEditable(inputRef.current, undefined, -1);
+      onInputTextChanged(inputRef.current.innerHTML);
+    }
     const { text, entities } = parseHtmlAsFormattedText(getHtml());
 
     if (currentAttachments.length) {
@@ -1884,7 +1906,7 @@ const Composer: FC<OwnProps & StateProps> = ({
             noFocusInterception={hasAttachments}
             shouldSuppressFocus={isMobile && isSymbolMenuOpen}
             shouldSuppressTextFormatter={isEmojiTooltipOpen || isMentionTooltipOpen || isInlineBotTooltipOpen}
-            onUpdate={setHtml}
+            onUpdate={onInputTextChanged}
             onSend={onSend}
             onSuppressedFocus={closeSymbolMenu}
             onFocus={markInputHasFocus}

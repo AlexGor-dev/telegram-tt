@@ -4,7 +4,8 @@ import { ApiMessageEntityTypes } from '../api/types';
 import { RE_LINK_TEMPLATE } from '../config';
 import { markdownToAstTree } from './markdown/astBuilder';
 import { astRender } from './markdown/astRender';
-import { isHtml } from './markdown/htmlToMarkdown';
+import { htmlToMarkdown, isHtml, TG_TAGS } from './markdown/htmlToMarkdown';
+import { parseMarkdownToAst, parseMarkdownToEntries, parseMarkdownToHtml } from './markdown/markdownParser';
 import { getTgMarkdownRules } from './markdown/markdownRules';
 
 export const ENTITY_CLASS_BY_NODE_NAME: Record<string, ApiMessageEntityTypes> = {
@@ -27,50 +28,51 @@ const MAX_TAG_DEEPNESS = 6;
 export default function parseHtmlAsFormattedText(
   html: string, withMarkdownLinks = false, skipMarkdown = false,
 ): ApiFormattedText {
-  const fragment = document.createElement('div');
-  fragment.innerHTML = skipMarkdown ? html
-    : withMarkdownLinks ? parseMarkdown(parseMarkdownLinks(html)) : parseMarkdown(html);
-  fixImageContent(fragment);
+  // const fragment = document.createElement('div');
+  // fragment.innerHTML = skipMarkdown ? html
+  //   : withMarkdownLinks ? parseMarkdown(parseMarkdownLinks(html)) : parseMarkdown(html);
+  // fixImageContent(fragment);
+  //
+  // let text = fragment.innerText.trim().replace(/\u200b+/g, '');
+  // const trimShift = fragment.innerText.indexOf(text[0]);
+  // let textIndex = -trimShift;
+  // let recursionDeepness = 0;
+  // const entities: ApiMessageEntity[] = [];
+  //
+  // function addEntity(node: ChildNode) {
+  //   if (node.nodeType === Node.COMMENT_NODE) return;
+  //   const { index, replaceLen, entity } = getEntityDataFromNode(node, text, textIndex);
+  //
+  //   if (entity) {
+  //     if (replaceLen) {
+  //       text = text.substring(0, index - replaceLen) + text.substring(index);
+  //       textIndex = index - replaceLen;
+  //     } else {
+  //       textIndex = index;
+  //     }
+  //     entities.push(entity);
+  //   } else if (node.textContent) {
+  //     // Skip newlines on the beginning
+  //     if (index === 0 && node.textContent.trim() === '') {
+  //       return;
+  //     }
+  //     // textIndex += node.textContent.length;
+  //   }
+  //
+  //   if (node.hasChildNodes() && recursionDeepness <= MAX_TAG_DEEPNESS) {
+  //     recursionDeepness += 1;
+  //     Array.from(node.childNodes).forEach(addEntity);
+  //   } else if (node.textContent) {
+  //     textIndex += node.textContent.length;
+  //   }
+  // }
+  //
+  // Array.from(fragment.childNodes).forEach((node) => {
+  //   recursionDeepness = 1;
+  //   addEntity(node);
+  // });
 
-  let text = fragment.innerText.trim().replace(/\u200b+/g, '');
-  const trimShift = fragment.innerText.indexOf(text[0]);
-  let textIndex = -trimShift;
-  let recursionDeepness = 0;
-  const entities: ApiMessageEntity[] = [];
-
-  function addEntity(node: ChildNode) {
-    if (node.nodeType === Node.COMMENT_NODE) return;
-    const { index, replaceLen, entity } = getEntityDataFromNode(node, text, textIndex);
-
-    if (entity) {
-      if (replaceLen) {
-        text = text.substring(0, index - replaceLen) + text.substring(index);
-        textIndex = index - replaceLen;
-      } else {
-        textIndex = index;
-      }
-      entities.push(entity);
-    } else if (node.textContent) {
-      // Skip newlines on the beginning
-      if (index === 0 && node.textContent.trim() === '') {
-        return;
-      }
-      // textIndex += node.textContent.length;
-    }
-
-    if (node.hasChildNodes() && recursionDeepness <= MAX_TAG_DEEPNESS) {
-      recursionDeepness += 1;
-      Array.from(node.childNodes).forEach(addEntity);
-    } else if (node.textContent) {
-      textIndex += node.textContent.length;
-    }
-  }
-
-  Array.from(fragment.childNodes).forEach((node) => {
-    recursionDeepness = 1;
-    addEntity(node);
-  });
-
+  const [text, entities] = parseMarkdownToEntries(html);
   return {
     text,
     entities: entities.length ? entities : undefined,
@@ -89,16 +91,25 @@ export function fixImageContent(fragment: HTMLDivElement) {
 
 function parseMarkdown(html: string) {
   // mycode
-  html = html.replace(/&gt;/g, '>').replace(/&lt;/g, '<');
-  html = html.replace(/&nbsp;/g, ' ');
-  // Replace <div><br></div> with newline (new line in Safari)
-  html = html.replace(/<div><br([^>]*)?><\/div>/g, '\n');
-  let parsedHtml = html;
-  if (!isHtml(html)) {
-    const nodes = markdownToAstTree(getTgMarkdownRules(), html);
-    parsedHtml = astRender(nodes);
+  if (isHtml(html)) {
+    html = htmlToMarkdown(html, TG_TAGS);
   }
-  parsedHtml = parsedHtml.replace(/<br([^>]*)?>/g, '\n');
+
+  const parsedHtml = parseMarkdownToHtml(html);
+  // if (!isHtml(html)) {
+  //   // parseMarkdownToAst(html);
+  //   // const nodes = markdownToAstTree(getTgMarkdownRules(), html);
+  //   // parsedHtml = astRender(nodes);
+  //   // parsedHtml = html;
+  //   parsedHtml = parseMarkdownToHtml(html);
+  // } else {
+  //   parsedHtml = parsedHtml.replace(/&gt;/g, '>').replace(/&lt;/g, '<');
+  //   parsedHtml = parsedHtml.replace(/&nbsp;/g, ' ');
+  //   // Replace <div><br></div> with newline (new line in Safari)
+  //   parsedHtml = parsedHtml.replace(/<div><br([^>]*)?><\/div>/g, '\n');
+  //   parsedHtml = parsedHtml.replace(/<br([^>]*)?>/g, '\n');
+  // }
+
   return parsedHtml;
 }
 

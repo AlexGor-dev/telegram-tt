@@ -87,10 +87,11 @@
       }
     }
   }
-
+  .SearchInput{
+    border-radius: 0.7rem;
+  }
   .Transition.slide {
     height: 100%;
-
     .Loading {
       height: var(--symbol-menu-height);
     }

@@ -36,17 +36,20 @@ export type FolderDesc = {
 };
 
 export const FOLDER_ICONS: Record<string, FolderDesc> = {
-  '🤖': { icon: 'folder-bot', desc: 'lng_filters_type_bots' },
-  '✅': { icon: 'folder-chat', desc: 'lng_filters_edit_chats' },
   '💬': { icon: 'folder-chats', desc: 'lng_recent_chats' },
-  '👥': { icon: 'folder-group', desc: 'lng_filters_type_groups' },
-  '📢': { icon: 'folder-channel', desc: 'lng_filters_type_channels' },
-  '📁': { icon: 'folder-folder', desc: 'lng_filters_title' },
+  '✅': { icon: 'folder-chat', desc: 'lng_filters_edit_chats' },
   '👤': { icon: 'folder-user', desc: 'NotificationHiddenChatUserName' },
+  '👥': { icon: 'folder-group', desc: 'lng_filters_type_groups' },
   '⭐': { icon: 'folder-star', desc: 'FavoriteStickers' },
+  '📢': { icon: 'folder-channel', desc: 'lng_filters_type_channels' },
+  '🤖': { icon: 'folder-bot', desc: 'lng_filters_type_bots' },
+  '📁': { icon: 'folder-folder', desc: 'lng_filters_title' },
 };
 
 export function renderEmoji(emoji: string, className = '', size: 'big' | 'small' = 'small') {
+  if (!emoji) {
+    return undefined;
+  }
   const desc = FOLDER_ICONS[emoji];
   if (desc) {
     return (

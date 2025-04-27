@@ -623,10 +623,10 @@ function processEntityAsHtml(
     case ApiMessageEntityTypes.Underline:
       return `<u>${renderedContent}</u>`;
     case ApiMessageEntityTypes.Code:
-      return `<code class="text-entity-code">${renderedContent}</code>`;
+      return `<code class="text-entity-code" data-entity-type="${ApiMessageEntityTypes.Code}">${renderedContent}</code>`;
     case ApiMessageEntityTypes.Pre:
       // return `<pre class="CodeBlock" data-language='${entity.language}'>${renderedContent}</pre>\n`;
-      return codeBlockHtml(renderedContent, entity.language);
+      return codeBlockHtml(renderedContent, '', entity.language);
       // return `${<CodeBlock text={renderedContent} language={entity.language} />}`;
       // return `\`\`\`${renderText(entity.language || '', ['escape_html'])}<br/>${renderedContent}<br/>\`\`\`<br/>`;
     case ApiMessageEntityTypes.Strike:

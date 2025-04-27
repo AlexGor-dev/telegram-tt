@@ -342,6 +342,7 @@ const SettingsFoldersEdit: FC<OwnProps & StateProps> = ({
   const handleEmojiSearchQueryChange = useLastCallback((query: string) => {
     setEmojiSearchQuery({ query });
   });
+  if (!state.folder.emoticon) state.folder.emoticon = '💬';
   return (
     <div className="settings-fab-wrapper">
       <div className="settings-content no-border custom-scroll">

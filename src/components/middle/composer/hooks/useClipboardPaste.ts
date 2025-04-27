@@ -3,12 +3,14 @@ import { useEffect } from '../../../../lib/teact/teact';
 import { getActions } from '../../../../global';
 
 import type { ApiAttachment, ApiFormattedText, ApiMessage } from '../../../../api/types';
+import type { RootNode } from '../../../../util/markdown/markdownParser';
 
 import {
   EDITABLE_INPUT_ID, EDITABLE_INPUT_MODAL_ID, EDITABLE_STORY_INPUT_ID,
 } from '../../../../config';
 import { canReplaceMessageMedia, isUploadingFileSticker } from '../../../../global/helpers';
 import { containsCustomEmoji, stripCustomEmoji } from '../../../../global/helpers/symbols';
+import { parseMarkdownToAst } from '../../../../util/markdown/markdownParser';
 import parseHtmlAsFormattedText from '../../../../util/parseHtmlAsFormattedText';
 import buildAttachment from '../helpers/buildAttachment';
 import { preparePastedHtml } from '../helpers/cleanHtml';
@@ -26,6 +28,7 @@ const CLOSEST_CONTENT_EDITABLE_SELECTOR = 'div[contenteditable]';
 const useClipboardPaste = (
   isActive: boolean,
   insertTextAndUpdateCursor: (text: ApiFormattedText, inputId?: string) => void,
+  insertNodeAndUpdateCursor: (root: RootNode, inputId?: string) => void,
   setAttachments: StateHookSetter<ApiAttachment[]>,
   setNextText: StateHookSetter<ApiFormattedText | undefined>,
   editedMessage: ApiMessage | undefined,
@@ -60,6 +63,13 @@ const useClipboardPaste = (
       const pastedText = e.clipboardData.getData('text');
       const html = e.clipboardData.getData('text/html');
 
+      if (pastedText) {
+        const root = parseMarkdownToAst(pastedText);
+        if (root.nodes.length) {
+          insertNodeAndUpdateCursor(root, input?.id);
+          return;
+        }
+      }
       // mycode
       let pastedFormattedText = parseHtmlAsFormattedText(pastedText, undefined, false);
       // let pastedFormattedText = html ? parseHtmlAsFormattedText(
